@@ -9,6 +9,7 @@
 	"dependencies": {
 		"@ai-sdk/anthropic": "^1.1.6",
 		"@ai-sdk/google": "^1.1.11",
+		"@ai-sdk/groq": "^1.1.9",
 		"@ai-sdk/openai": "^1.1.9",
 		"@hono/zod-validator": "^0.4.2",
 		"@oslojs/crypto": "^1.0.1",

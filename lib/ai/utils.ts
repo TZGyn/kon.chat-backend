@@ -24,9 +24,13 @@ export async function generateTitleFromUserMessage({
 	return title
 }
 
-export function sanitizeResponseMessages(
-	messages: Array<CoreToolMessage | CoreAssistantMessage>,
-): Array<CoreToolMessage | CoreAssistantMessage> {
+export function sanitizeResponseMessages({
+	messages,
+	reasoning,
+}: {
+	messages: Array<CoreToolMessage | CoreAssistantMessage>
+	reasoning: string | undefined
+}) {
 	const toolResultIds: Array<string> = []
 
 	for (const message of messages) {
@@ -51,6 +55,11 @@ export function sanitizeResponseMessages(
 				? content.text.length > 0
 				: true,
 		)
+
+		if (reasoning) {
+			// @ts-expect-error: reasoning message parts in sdk is wip
+			sanitizedContent.push({ type: 'reasoning', reasoning })
+		}
 
 		return {
 			...message,
