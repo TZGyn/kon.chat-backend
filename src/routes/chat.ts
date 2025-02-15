@@ -84,6 +84,15 @@ app.get('/:chat_id', async (c) => {
 			and(eq(chat.id, chatId), eq(chat.userId, user.id)),
 		with: {
 			messages: {
+				columns: {
+					content: true,
+					role: true,
+					model: true,
+					id: true,
+					createdAt: true,
+					chatId: true,
+					braveData: true,
+				},
 				orderBy: (message, { asc }) => [asc(message.createdAt)],
 			},
 		},
