@@ -79,6 +79,12 @@ app.get('/:chat_id', async (c) => {
 
 	if (!user) return c.json({ chat: null })
 
+	if (session !== null) {
+		setSessionTokenCookie(c, token, session.expiresAt)
+	} else {
+		deleteSessionTokenCookie(c)
+	}
+
 	const chat = await db.query.chat.findFirst({
 		where: (chat, { eq, and }) =>
 			and(eq(chat.id, chatId), eq(chat.userId, user.id)),
@@ -103,21 +109,6 @@ app.get('/:chat_id', async (c) => {
 
 app.post(
 	'/:chat_id',
-	describeRoute({
-		description: 'Say hello to the user',
-		responses: {
-			200: {
-				description: 'Successful greeting response',
-				content: {
-					'text/plain': {
-						schema: resolver(
-							z.string().openapi({ example: 'Hello Steven!' }),
-						),
-					},
-				},
-			},
-		},
-	}),
 	zValidator(
 		'json',
 		z.object({
@@ -154,16 +145,62 @@ app.post(
 		const userMessage = getMostRecentUserMessage(coreMessages)
 
 		if (!userMessage) {
-			return c.json({ success: false, message: 'No User Message' })
+			return c.text('No User Message', { status: 400 })
 		}
 
 		let model
 
 		if (provider.name === 'openai') {
+			if (!token) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			const { session, user } = await validateSessionToken(token)
+
+			if (!user) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			if (user.plan === 'free') {
+				return c.text(
+					'You have to be in basic or higher plan to use this model',
+					{
+						status: 400,
+					},
+				)
+			}
+
 			model = openai(provider.model)
 		} else if (provider.name === 'google') {
 			model = google(provider.model)
 		} else if (provider.name === 'groq') {
+			if (!token) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			const { session, user } = await validateSessionToken(token)
+
+			if (!user) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			if (user.plan === 'free') {
+				return c.text(
+					'You have to be in basic or higher plan to use this model',
+					{
+						status: 400,
+					},
+				)
+			}
+
 			if (provider.model === 'deepseek-r1-distill-llama-70b') {
 				model = wrapLanguageModel({
 					model: groq(provider.model),
@@ -175,7 +212,7 @@ app.post(
 				model = groq(provider.model)
 			}
 		} else {
-			return c.json({ success: false, message: 'Invalid Model' })
+			return c.text('Invalid Model', { status: 400 })
 		}
 
 		return createDataStreamResponse({
