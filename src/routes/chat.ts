@@ -291,15 +291,23 @@ app.post(
 						// 	prompt: prompt,
 						// })
 
+						let articlesReadCount = 0
+
 						dataStream.writeData({
 							type: 'message',
-							message: 'Reading Articles',
+							message: `Reading Articles [${articlesReadCount}/10]`,
 						})
 
 						jinaData = (
 							await Promise.all(
 								articles.map(async (article) => {
-									return await jinaRead(article.url)
+									const data = await jinaRead(article.url)
+									articlesReadCount++
+									dataStream.writeData({
+										type: 'message',
+										message: `Reading Articles [${articlesReadCount}/10]`,
+									})
+									return data
 								}),
 							)
 						).filter((data) => data !== undefined)
