@@ -210,7 +210,7 @@ app.get('/login/google/callback', async (c) => {
 				premiumChatLimit: 0,
 				premiumChatCredit: 0,
 				searchLimit: 0,
-				standardChatCredit: 0,
+				standardChatCredit: 100,
 				standardChatLimit: 0,
 				createdAt: Date.now(),
 			})

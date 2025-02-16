@@ -16,6 +16,8 @@ import {
 
 import AuthRoutes from './routes/auth'
 import ChatRoutes from './routes/chat'
+import WebhookRoutes from './routes/webhook'
+import BillingRoutes from './routes/billing'
 
 const app = new Hono()
 app.use(
@@ -96,8 +98,11 @@ app.get(
 
 app.route('/auth', AuthRoutes)
 app.route('/chat', ChatRoutes)
+app.route('/webhook', WebhookRoutes)
+app.route('/billing', BillingRoutes)
 
 Bun.serve({
 	...app,
+	hostname: '0.0.0.0',
 	idleTimeout: 255,
 })
