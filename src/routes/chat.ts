@@ -99,6 +99,8 @@ app.get('/:chat_id', async (c) => {
 					createdAt: true,
 					chatId: true,
 					braveData: true,
+					provider: true,
+					providerMetadata: true,
 				},
 				orderBy: (message, { asc }) => [asc(message.createdAt)],
 			},
@@ -416,9 +418,10 @@ app.post(
 							| GoogleGenerativeAIProviderMetadata
 							| undefined
 						if (metadata) {
+							// @ts-ignore
 							dataStream.writeMessageAnnotation({
 								type: 'google-grounding',
-								data: metadata.groundingMetadata,
+								data: metadata,
 							})
 						}
 						// console.log(
@@ -435,7 +438,7 @@ app.post(
 					},
 					experimental_transform: smoothStream({
 						delayInMs: 20, // optional: defaults to 10ms
-						chunking: 'line', // optional: defaults to 'word'
+						chunking: 'word', // optional: defaults to 'word'
 					}),
 					onFinish: async ({
 						response,
