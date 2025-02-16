@@ -41,6 +41,7 @@ import { Redis } from '@upstash/redis'
 import { stream } from 'hono/streaming'
 import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
+import { redis } from '../../lib/redis'
 
 const app = new Hono()
 
@@ -115,11 +116,6 @@ app.get('/:chat_id', async (c) => {
 	return c.json({ chat })
 })
 
-const redis = new Redis({
-	url: 'https://relaxed-bug-15714.upstash.io',
-	token: Bun.env.UPSTASH_SECRET,
-})
-
 app.post(
 	'/:chat_id',
 	zValidator(
@@ -189,18 +185,17 @@ app.post(
 			searchLimit: number
 			searchCredit: number
 		}>(
-			token.startsWith('free:')
+			(token.startsWith('free:')
 				? token
 				: encodeHexLowerCase(
 						sha256(new TextEncoder().encode(token)),
-				  ) + '-limit',
+				  )) + '-limit',
 		)
 
 		if (!limit) {
 			if (token.startsWith('free:')) {
 				return c.text('You have been rate limited', { status: 400 })
 			} else {
-				console.log('hit')
 				const { session, user } = await validateSessionToken(token)
 				if (!user) return c.text('Invalid User', { status: 400 })
 
@@ -221,8 +216,6 @@ app.post(
 				}
 			}
 		}
-
-		console.log(limit)
 
 		if (search && limit.searchCredit + limit.searchLimit <= 0) {
 			return c.text('You have reached the limit for web search')

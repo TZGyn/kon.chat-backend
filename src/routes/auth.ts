@@ -19,9 +19,7 @@ import {
 import { google } from '../../lib/auth/provider'
 import { db } from '../../lib/db'
 import { user } from '../../lib/db/schema'
-import { describeRoute } from 'hono-openapi'
-import { resolver } from 'hono-openapi/zod'
-import { z } from 'zod'
+import { redis } from '../../lib/redis'
 
 const app = new Hono()
 
@@ -30,6 +28,33 @@ app.get('/me', async (c) => {
 
 	if (token === null) {
 		return c.json({ user: null })
+	}
+
+	if (token.startsWith('free:')) {
+		let limit = await redis.get<{
+			plan: 'free' | 'basic' | 'pro' | 'owner'
+			standardLimit: number
+			premiumLimit: number
+			standardCredit: number
+			premiumCredit: number
+			searchLimit: number
+			searchCredit: number
+		}>(token + '-limit')
+		if (!limit) return c.json({ user: null })
+
+		return c.json({
+			user: {
+				email: '',
+				name: '',
+				plan: 'free',
+				standardChatLimit: limit.standardLimit,
+				premiumChatLimit: limit.premiumLimit,
+				standardChatCredit: limit.standardCredit,
+				premiumChatCredit: limit.premiumCredit,
+				searchLimit: limit.searchLimit,
+				searchCredit: limit.searchCredit,
+			},
+		})
 	}
 
 	const { session, user } = await validateSessionToken(token)
