@@ -35,6 +35,7 @@ import { and, eq } from 'drizzle-orm'
 import { jinaRead } from '../../lib/ai/jina'
 import { braveSearch } from '../../lib/ai/brave'
 import { Hono } from 'hono'
+import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
 
 const app = new Hono()
 
@@ -133,10 +134,12 @@ app.post(
 				])
 				.default({ name: 'openai', model: 'gpt-4o-mini' }),
 			search: z.boolean().default(false),
+			searchGrounding: z.boolean().default(false),
 		}),
 	),
 	async (c) => {
-		const { messages, provider, search } = c.req.valid('json')
+		const { messages, provider, search, searchGrounding } =
+			c.req.valid('json')
 
 		const token = getCookie(c, 'session') ?? null
 		const chatId = c.req.param('chat_id')
@@ -176,7 +179,9 @@ app.post(
 
 			model = openai(provider.model)
 		} else if (provider.name === 'google') {
-			model = google(provider.model)
+			model = google(provider.model, {
+				useSearchGrounding: searchGrounding,
+			})
 		} else if (provider.name === 'groq') {
 			if (!token) {
 				return c.text('You have to be logged in to use this model', {
@@ -383,9 +388,14 @@ app.post(
 					messages: coreMessages,
 					system: `
 						You are a chat assistant
-						Dont call any tools as there are no tools
-						Only use the information provided to you
-						If theres is a need for search, the search result will be provided to you
+						${
+							!searchGrounding &&
+							`
+								Dont call any tools as there are no tools
+								Only use the information provided to you
+								If theres is a need for search, the search result will be provided to you
+							`
+						}
 
 						if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
 						example:
@@ -400,6 +410,26 @@ app.post(
 
 						${searchMessage}
 					`,
+					onChunk: ({ chunk }) => {},
+					onStepFinish: (data) => {
+						const metadata = data.providerMetadata?.google as
+							| GoogleGenerativeAIProviderMetadata
+							| undefined
+						if (metadata) {
+							dataStream.writeMessageAnnotation({
+								type: 'google-grounding',
+								data: metadata.groundingMetadata,
+							})
+						}
+						// console.log(
+						// 	require('util').inspect(
+						// 		data,
+						// 		false,
+						// 		null,
+						// 		true /* enable colors */,
+						// 	),
+						// )
+					},
 					onError: (error) => {
 						console.log(error)
 					},
@@ -407,7 +437,29 @@ app.post(
 						delayInMs: 20, // optional: defaults to 10ms
 						chunking: 'line', // optional: defaults to 'word'
 					}),
-					onFinish: async ({ response, usage, reasoning }) => {
+					onFinish: async ({
+						response,
+						usage,
+						reasoning,
+						providerMetadata,
+					}) => {
+						const metadata = providerMetadata?.google as
+							| GoogleGenerativeAIProviderMetadata
+							| undefined
+						const groundingMetadata = metadata?.groundingMetadata
+
+						// console.log('GROUNDING')
+						// console.log('____________________________________')
+						// console.log(
+						// 	require('util').inspect(
+						// 		groundingMetadata,
+						// 		false,
+						// 		null,
+						// 		true /* enable colors */,
+						// 	),
+						// )
+						const safetyRatings = metadata?.safetyRatings
+
 						if (token === null) return
 
 						const { session, user } = await validateSessionToken(
@@ -461,6 +513,11 @@ app.post(
 										role: message.role,
 										content: message.content,
 										model: provider.model,
+										provider: provider.name,
+										providerMetadata:
+											message.role === 'assistant'
+												? providerMetadata
+												: undefined,
 										braveData: brave,
 										jinaData: jina,
 										...usage,

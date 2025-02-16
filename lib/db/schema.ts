@@ -43,6 +43,8 @@ export const message = pgTable('message', {
 	jinaData: json('jina_data').notNull().default([]),
 	content: json('content').notNull(),
 	model: varchar('model'),
+	provider: varchar('provider'),
+	providerMetadata: json('provider_metadata').notNull().default({}),
 	promptTokens: bigint('prompt_tokens', { mode: 'number' }).notNull(),
 	completionTokens: bigint('completion_tokens', {
 		mode: 'number',
