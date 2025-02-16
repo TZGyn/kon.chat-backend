@@ -46,7 +46,17 @@ app.get('/me', async (c) => {
 
 	return c.json({
 		user: user
-			? { email: user.email, name: user.username, plan: user.plan }
+			? {
+					email: user.email,
+					name: user.username,
+					plan: user.plan,
+					standardChatLimit: user.standardChatLimit,
+					premiumChatLimit: user.premiumChatLimit,
+					standardChatCredit: user.standardChatCredit,
+					premiumChatCredit: user.premiumChatCredit,
+					searchLimit: user.searchLimit,
+					searchCredit: user.searchCredit,
+			  }
 			: null,
 	})
 })
@@ -170,7 +180,13 @@ app.get('/login/google/callback', async (c) => {
 				googleId: googleUserId,
 				username: username,
 				email: email,
-				credit: 0,
+				plan: 'free',
+				searchCredit: 0,
+				premiumChatLimit: 0,
+				premiumChatCredit: 0,
+				searchLimit: 0,
+				standardChatCredit: 0,
+				standardChatLimit: 0,
 				createdAt: Date.now(),
 			})
 			.returning()

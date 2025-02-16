@@ -13,7 +13,32 @@ export const user = pgTable('user', {
 	googleId: varchar('google_id', { length: 255 }).notNull(),
 	username: varchar('username', { length: 255 }).notNull(),
 	email: varchar('email', { length: 255 }).notNull(),
-	credit: bigint('credit', { mode: 'number' }).notNull(),
+	standardChatLimit: bigint('standard_chat_limit', { mode: 'number' })
+		.notNull()
+		.default(0),
+	premiumChatLimit: bigint('premium_chat_limit', { mode: 'number' })
+		.notNull()
+		.default(0),
+	standardChatCredit: bigint('standard_chat_credit', {
+		mode: 'number',
+	})
+		.notNull()
+		.default(0),
+	premiumChatCredit: bigint('premium_chat_credit', {
+		mode: 'number',
+	})
+		.notNull()
+		.default(0),
+	searchLimit: bigint('search_limit', {
+		mode: 'number',
+	})
+		.notNull()
+		.default(0),
+	searchCredit: bigint('search_credit', {
+		mode: 'number',
+	})
+		.notNull()
+		.default(0),
 	polarCustomerId: varchar('polar_customer_id', { length: 255 }),
 	plan: varchar('plan', { length: 255 })
 		.notNull()
@@ -52,6 +77,10 @@ export const message = pgTable('message', {
 	totalTokens: bigint('total_tokens', { mode: 'number' }).notNull(),
 	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
+
+export const userRelations = relations(user, ({ many }) => ({
+	sessions: many(session),
+}))
 
 export const sessionRelations = relations(session, ({ one }) => ({
 	user: one(user, {

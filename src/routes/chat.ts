@@ -1,5 +1,6 @@
 import {
 	convertToCoreMessages,
+	createDataStream,
 	createDataStreamResponse,
 	extractReasoningMiddleware,
 	generateId,
@@ -11,7 +12,7 @@ import {
 	type UserContent,
 } from 'ai'
 import { getMostRecentUserMessage } from '../../lib/utils'
-import { google, groq, openai } from '../../lib/ai/model'
+import { anthropic, google, groq, openai } from '../../lib/ai/model'
 import { z } from 'zod'
 import { getCookie } from 'hono/cookie'
 
@@ -31,11 +32,15 @@ import {
 	generateTitleFromUserMessage,
 	sanitizeResponseMessages,
 } from '../../lib/ai/utils'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { jinaRead } from '../../lib/ai/jina'
 import { braveSearch } from '../../lib/ai/brave'
 import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
+import { Redis } from '@upstash/redis'
+import { stream } from 'hono/streaming'
+import { encodeHexLowerCase } from '@oslojs/encoding'
+import { sha256 } from '@oslojs/crypto/sha2'
 
 const app = new Hono()
 
@@ -110,6 +115,11 @@ app.get('/:chat_id', async (c) => {
 	return c.json({ chat })
 })
 
+const redis = new Redis({
+	url: 'https://relaxed-bug-15714.upstash.io',
+	token: Bun.env.UPSTASH_SECRET,
+})
+
 app.post(
 	'/:chat_id',
 	zValidator(
@@ -133,8 +143,12 @@ app.post(
 							'llama-3.3-70b-versatile',
 						]),
 					}),
+					z.object({
+						name: z.literal('anthropic'),
+						model: z.enum(['claude-3-5-sonnet-latest']),
+					}),
 				])
-				.default({ name: 'openai', model: 'gpt-4o-mini' }),
+				.default({ name: 'google', model: 'gemini-2.0-flash-001' }),
 			search: z.boolean().default(false),
 			searchGrounding: z.boolean().default(false),
 		}),
@@ -143,7 +157,77 @@ app.post(
 		const { messages, provider, search, searchGrounding } =
 			c.req.valid('json')
 
-		const token = getCookie(c, 'session') ?? null
+		let token = getCookie(c, 'session') ?? null
+		if (!token) {
+			token = `free:${generateId()}`
+			setSessionTokenCookie(
+				c,
+				token,
+				Date.now() + 1000 * 60 * 60 * 24 * 1,
+			)
+			await redis.set(
+				token + '-limit',
+				{
+					plan: 'free',
+					standardLimit: 10,
+					premiumLimit: 0,
+					standardCredit: 0,
+					premiumCredit: 0,
+					searchLimit: 0,
+					searchCredit: 0,
+				},
+				{ ex: 60 * 60 * 24 },
+			)
+		}
+
+		let limit = await redis.get<{
+			plan: 'free' | 'basic' | 'pro' | 'owner'
+			standardLimit: number
+			premiumLimit: number
+			standardCredit: number
+			premiumCredit: number
+			searchLimit: number
+			searchCredit: number
+		}>(
+			token.startsWith('free:')
+				? token
+				: encodeHexLowerCase(
+						sha256(new TextEncoder().encode(token)),
+				  ) + '-limit',
+		)
+
+		if (!limit) {
+			if (token.startsWith('free:')) {
+				return c.text('You have been rate limited', { status: 400 })
+			} else {
+				console.log('hit')
+				const { session, user } = await validateSessionToken(token)
+				if (!user) return c.text('Invalid User', { status: 400 })
+
+				if (session !== null) {
+					setSessionTokenCookie(c, token, session.expiresAt)
+				} else {
+					deleteSessionTokenCookie(c)
+				}
+
+				limit = {
+					plan: user.plan,
+					standardCredit: user.standardChatCredit,
+					premiumCredit: user.premiumChatCredit,
+					premiumLimit: user.premiumChatLimit,
+					standardLimit: user.standardChatLimit,
+					searchCredit: user.searchCredit,
+					searchLimit: user.searchLimit,
+				}
+			}
+		}
+
+		console.log(limit)
+
+		if (search && limit.searchCredit + limit.searchLimit <= 0) {
+			return c.text('You have reached the limit for web search')
+		}
+
 		const chatId = c.req.param('chat_id')
 
 		const coreMessages = convertToCoreMessages(messages)
@@ -162,25 +246,28 @@ app.post(
 				})
 			}
 
-			const { session, user } = await validateSessionToken(token)
-
-			if (!user) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (user.plan === 'free') {
+			if (limit.plan === 'free') {
 				return c.text(
-					'You have to be in basic or higher plan to use this model',
+					'You need to have basic or higher plan to use this model',
 					{
 						status: 400,
 					},
 				)
 			}
 
+			if (limit.standardLimit + limit.standardCredit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
+
 			model = openai(provider.model)
 		} else if (provider.name === 'google') {
+			if (limit.standardLimit + limit.standardCredit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
 			model = google(provider.model, {
 				useSearchGrounding: searchGrounding,
 			})
@@ -191,21 +278,19 @@ app.post(
 				})
 			}
 
-			const { session, user } = await validateSessionToken(token)
-
-			if (!user) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (user.plan === 'free') {
+			if (limit.plan === 'free') {
 				return c.text(
-					'You have to be in basic or higher plan to use this model',
+					'You need to have basic or higher plan to use this model',
 					{
 						status: 400,
 					},
 				)
+			}
+
+			if (limit.standardLimit + limit.standardCredit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
 			}
 
 			if (provider.model === 'deepseek-r1-distill-llama-70b') {
@@ -218,36 +303,57 @@ app.post(
 			} else {
 				model = groq(provider.model)
 			}
+		} else if (provider.name === 'anthropic') {
+			if (!token) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			if (limit.plan !== 'pro') {
+				return c.text('You need to have pro plan to use this model', {
+					status: 400,
+				})
+			}
+
+			if (limit.premiumCredit + limit.premiumLimit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
+			model = anthropic(provider.model)
 		} else {
 			return c.text('Invalid Model', { status: 400 })
 		}
 
-		return createDataStreamResponse({
-			execute: async (dataStream) => {
-				dataStream.writeMessageAnnotation({
-					type: 'model',
-					model: provider.model,
-				})
+		return stream(c, (stream) =>
+			stream.pipe(
+				createDataStream({
+					execute: async (dataStream) => {
+						dataStream.writeMessageAnnotation({
+							type: 'model',
+							model: provider.model,
+						})
 
-				dataStream.writeData({
-					type: 'message',
-					message: 'Understanding prompt',
-				})
+						dataStream.writeData({
+							type: 'message',
+							message: 'Understanding prompt',
+						})
 
-				let jinaData
-				let braveSearchData
-				if (search) {
-					dataStream.writeData({
-						type: 'error',
-						message: 'Search is not allowed',
-					})
+						let jinaData
+						let braveSearchData
+						if (search) {
+							dataStream.writeData({
+								type: 'error',
+								message: 'Search is not allowed',
+							})
 
-					const prompt = userMessage.content
+							const prompt = userMessage.content
 
-					if (typeof prompt === 'string') {
-						const { text: query } = await generateText({
-							model: google('gemini-2.0-flash-001'),
-							system: `
+							if (typeof prompt === 'string') {
+								const { text: query } = await generateText({
+									model: google('gemini-2.0-flash-001'),
+									system: `
 							You are a search query generator
 							You will be provided a prompt from a user
 							You will build a single search query text that will be later be used to fulfill the info needed for that prompt
@@ -263,132 +369,132 @@ app.post(
 							- query: latest superbowl result
 							This is correct because the query doesnt assume any information but still contains the neccessary query data to fulfill the prompt
 
-							Current year is ${new Date().getFullYear()}
+							Current date is ${new Date().toString()}
 						`,
-							prompt: prompt,
-						})
+									prompt: prompt,
+								})
+
+								dataStream.writeData({
+									type: 'message',
+									message: 'Searching Internet',
+								})
+
+								const braveData = await braveSearch(query)
+
+								braveSearchData = braveData
+
+								const articles =
+									braveData?.web.results.map((result) => {
+										return {
+											url: result.url,
+											description: result.description,
+											title: result.title,
+											pageAge: result.page_age,
+										}
+									}) || []
+
+								dataStream.writeMessageAnnotation({
+									type: 'search',
+									data: [...articles],
+								})
+
+								// dataStream.writeData({
+								// 	type: 'message',
+								// 	message: 'Filtering Articles',
+								// })
+
+								// const { object } = await generateObject({
+								// 	model: openai('gpt-4o-mini'),
+								// 	schema: z.object({
+								// 		articles: z.array(
+								// 			z.object({
+								// 				url: z
+								// 					.string()
+								// 					.describe('url of the selected article'),
+								// 				description: z
+								// 					.string()
+								// 					.describe(
+								// 						'description of the selected article',
+								// 					),
+								// 				title: z
+								// 					.string()
+								// 					.describe('title of the selected article'),
+								// 				pageAge: z
+								// 					.string()
+								// 					.describe('pageAge of the selected article'),
+								// 			}),
+								// 		),
+								// 	}),
+								// 	system: `
+								// 		You are an article selector
+								// 		You will be given a array of articles in json format
+								// 		You will filtering the articles based on the relevance given a prompt
+								// 		The each article given to you will have the following fields
+								// 		- url (the url of the article)
+								// 		- description (the description of the article)
+								// 		- title (the title of the article)
+								// 		- pageAge (the date of the article ex: 2025-01-21T09:15:03)
+
+								// 		Here is the articles:
+								// 		${JSON.stringify(articles)}
+								// 	`,
+								// 	prompt: prompt,
+								// })
+
+								let articlesReadCount = 0
+
+								dataStream.writeData({
+									type: 'message',
+									message: `Reading Articles [${articlesReadCount}/10]`,
+								})
+
+								jinaData = (
+									await Promise.all(
+										articles.map(async (article) => {
+											const data = await jinaRead(article.url)
+											articlesReadCount++
+											dataStream.writeData({
+												type: 'message',
+												message: `Reading Articles [${articlesReadCount}/10]`,
+											})
+											return data
+										}),
+									)
+								).filter((data) => data !== undefined)
+							} else {
+								dataStream.writeData({
+									type: 'error',
+									message: 'Non-text search is not allowed',
+								})
+							}
+						}
 
 						dataStream.writeData({
 							type: 'message',
-							message: 'Searching Internet',
+							message: 'Generating Response',
 						})
 
-						const braveData = await braveSearch(query)
-
-						braveSearchData = braveData
-
-						const articles =
-							braveData?.web.results.map((result) => {
-								return {
-									url: result.url,
-									description: result.description,
-									title: result.title,
-									pageAge: result.page_age,
-								}
-							}) || []
-
-						dataStream.writeMessageAnnotation({
-							type: 'search',
-							data: [...articles],
-						})
-
-						// dataStream.writeData({
-						// 	type: 'message',
-						// 	message: 'Filtering Articles',
-						// })
-
-						// const { object } = await generateObject({
-						// 	model: openai('gpt-4o-mini'),
-						// 	schema: z.object({
-						// 		articles: z.array(
-						// 			z.object({
-						// 				url: z
-						// 					.string()
-						// 					.describe('url of the selected article'),
-						// 				description: z
-						// 					.string()
-						// 					.describe(
-						// 						'description of the selected article',
-						// 					),
-						// 				title: z
-						// 					.string()
-						// 					.describe('title of the selected article'),
-						// 				pageAge: z
-						// 					.string()
-						// 					.describe('pageAge of the selected article'),
-						// 			}),
-						// 		),
-						// 	}),
-						// 	system: `
-						// 		You are an article selector
-						// 		You will be given a array of articles in json format
-						// 		You will filtering the articles based on the relevance given a prompt
-						// 		The each article given to you will have the following fields
-						// 		- url (the url of the article)
-						// 		- description (the description of the article)
-						// 		- title (the title of the article)
-						// 		- pageAge (the date of the article ex: 2025-01-21T09:15:03)
-
-						// 		Here is the articles:
-						// 		${JSON.stringify(articles)}
-						// 	`,
-						// 	prompt: prompt,
-						// })
-
-						let articlesReadCount = 0
-
-						dataStream.writeData({
-							type: 'message',
-							message: `Reading Articles [${articlesReadCount}/10]`,
-						})
-
-						jinaData = (
-							await Promise.all(
-								articles.map(async (article) => {
-									const data = await jinaRead(article.url)
-									articlesReadCount++
-									dataStream.writeData({
-										type: 'message',
-										message: `Reading Articles [${articlesReadCount}/10]`,
-									})
-									return data
-								}),
-							)
-						).filter((data) => data !== undefined)
-					} else {
-						dataStream.writeData({
-							type: 'error',
-							message: 'Non-text search is not allowed',
-						})
-					}
-				}
-
-				dataStream.writeData({
-					type: 'message',
-					message: 'Generating Response',
-				})
-
-				let searchMessage
-				if (jinaData === undefined) {
-					searchMessage = ''
-				} else {
-					searchMessage = `
+						let searchMessage
+						if (jinaData === undefined) {
+							searchMessage = ''
+						} else {
+							searchMessage = `
 						User has also requested for a search function 
 						You will be provided the web search data that was found
 						Use them to answer the user prompt
 						data:
 						${JSON.stringify(jinaData.map((data) => data.data))}
 					`
-				}
+						}
 
-				const jina = jinaData
+						const jina = jinaData
 
-				const brave = braveSearchData
+						const brave = braveSearchData
 
-				const result = streamText({
-					model: model,
-					messages: coreMessages,
-					system: `
+						const result = streamText({
+							model: model,
+							messages: coreMessages,
+							system: `
 						You are a chat assistant
 						${
 							!searchGrounding &&
@@ -412,137 +518,227 @@ app.post(
 
 						${searchMessage}
 					`,
-					onChunk: ({ chunk }) => {},
-					onStepFinish: (data) => {
-						const metadata = data.providerMetadata?.google as
-							| GoogleGenerativeAIProviderMetadata
-							| undefined
-						if (metadata) {
-							// @ts-ignore
-							dataStream.writeMessageAnnotation({
-								type: 'google-grounding',
-								data: metadata,
-							})
-						}
-						// console.log(
-						// 	require('util').inspect(
-						// 		data,
-						// 		false,
-						// 		null,
-						// 		true /* enable colors */,
-						// 	),
-						// )
+							onChunk: ({ chunk }) => {},
+							onStepFinish: (data) => {
+								const metadata = data.providerMetadata?.google as
+									| GoogleGenerativeAIProviderMetadata
+									| undefined
+								if (metadata) {
+									// @ts-ignore
+									dataStream.writeMessageAnnotation({
+										type: 'google-grounding',
+										data: metadata,
+									})
+								}
+								// console.log(
+								// 	require('util').inspect(
+								// 		data,
+								// 		false,
+								// 		null,
+								// 		true /* enable colors */,
+								// 	),
+								// )
+							},
+							onError: (error) => {
+								console.log(error)
+							},
+							experimental_transform: smoothStream({
+								delayInMs: 10, // optional: defaults to 10ms
+								chunking: 'word', // optional: defaults to 'word'
+							}),
+							onFinish: async ({
+								response,
+								usage,
+								reasoning,
+								providerMetadata,
+							}) => {
+								if (token.startsWith('free:')) {
+									await redis.set(
+										token + '-limit',
+										{
+											...limit,
+											standardLimit: limit.standardLimit - 1,
+										},
+										{ ex: 60 * 60 * 24 },
+									)
+									return
+								}
+
+								const { session, user: loggedInUser } =
+									await validateSessionToken(token)
+
+								const standardModels = [
+									'gpt-4o',
+									'gpt-4o-mini',
+									'o3-mini',
+									'gemini-2.0-flash-001',
+									'deepseek-r1-distill-llama-70b',
+									'llama-3.3-70b-versatile',
+								]
+
+								const premiumModels = ['claude-3-5-sonnet-latest']
+
+								if (!loggedInUser) return
+
+								const existingChat = await db.query.chat.findFirst({
+									where: (chat, { eq, and }) =>
+										and(
+											eq(chat.id, chatId),
+											eq(chat.userId, loggedInUser.id),
+										),
+								})
+
+								if (!existingChat) {
+									const title = await generateTitleFromUserMessage({
+										message: userMessage,
+									})
+
+									await db.insert(chat).values({
+										id: chatId,
+										title: title,
+										userId: loggedInUser.id,
+										createdAt: Date.now(),
+									})
+								}
+
+								await db.insert(message).values({
+									...userMessage,
+									id: generateId(),
+									chatId: chatId,
+									promptTokens: 0,
+									completionTokens: 0,
+									totalTokens: 0,
+									createdAt: Date.now(),
+								})
+
+								const responseMessagesWithoutIncompleteToolCalls =
+									sanitizeResponseMessages({
+										messages: response.messages,
+										reasoning,
+									})
+
+								await db.insert(message).values(
+									responseMessagesWithoutIncompleteToolCalls.map(
+										(message, index) => {
+											const messageId = generateId()
+
+											return {
+												id: messageId,
+												chatId: chatId,
+												role: message.role,
+												content: message.content,
+												model: provider.model,
+												provider: provider.name,
+												providerMetadata:
+													message.role === 'assistant'
+														? providerMetadata
+														: undefined,
+												braveData: brave,
+												jinaData: jina,
+												...usage,
+												createdAt: Date.now() + (index + 1) * 1,
+											}
+										},
+									),
+								)
+
+								const minusSearchLimit =
+									loggedInUser.searchLimit > 0 && search
+								const minusSearchCredit =
+									!minusSearchLimit &&
+									loggedInUser.searchCredit > 0 &&
+									search
+
+								const minusStandardLimit =
+									loggedInUser.standardChatLimit > 0 &&
+									standardModels.includes(provider.model)
+								const minusStandardCredit =
+									!minusStandardLimit &&
+									loggedInUser.standardChatCredit > 0 &&
+									standardModels.includes(provider.model)
+
+								const minusPremiumLimit =
+									loggedInUser.premiumChatLimit > 0 &&
+									premiumModels.includes(provider.model)
+								const minusPremiumCredit =
+									!minusPremiumLimit &&
+									loggedInUser.premiumChatCredit > 0 &&
+									premiumModels.includes(provider.model)
+
+								const [updatedUser] = await db
+									.update(user)
+									.set({
+										searchLimit: sql`${user.searchLimit} - ${
+											minusSearchLimit ? '1' : '0'
+										}`,
+										searchCredit: sql`${user.searchCredit} - ${
+											minusSearchCredit ? '1' : '0'
+										}`,
+										standardChatLimit: sql`${
+											user.standardChatLimit
+										} - ${minusStandardLimit ? '1' : '0'}`,
+										standardChatCredit: sql`${
+											user.standardChatCredit
+										} - ${minusStandardCredit ? '1' : '0'}`,
+										premiumChatLimit: sql`${
+											user.premiumChatLimit
+										} - ${minusPremiumLimit ? '1' : '0'}`,
+										premiumChatCredit: sql`${
+											user.premiumChatCredit
+										} - ${minusPremiumCredit ? '1' : '0'}`,
+									})
+									.where(eq(user.id, loggedInUser.id))
+									.returning()
+
+								const currentUser = await db.query.user.findFirst({
+									where: (user, { eq }) =>
+										eq(user.id, loggedInUser.id),
+									with: {
+										sessions: {
+											where: (session, { gte }) =>
+												gte(session.expiresAt, Date.now()),
+										},
+									},
+								})
+
+								if (!currentUser) return
+
+								await Promise.all(
+									currentUser.sessions.map(async (session) => {
+										await redis.set(
+											session.id + '-limit',
+											{
+												plan: updatedUser.plan,
+												standardLimit: updatedUser.standardChatLimit,
+												premiumLimit: updatedUser.premiumChatLimit,
+												standardCredit:
+													updatedUser.standardChatCredit,
+												premiumCredit: updatedUser.premiumChatCredit,
+												searchLimit: updatedUser.searchLimit,
+												searchCredit: updatedUser.searchCredit,
+											},
+											{ ex: 60 * 60 * 24 },
+										)
+									}),
+								)
+							},
+						})
+
+						result.mergeIntoDataStream(dataStream, {
+							sendReasoning: true,
+						})
 					},
 					onError: (error) => {
+						// Error messages are masked by default for security reasons.
+						// If you want to expose the error message to the client, you can do so here:
 						console.log(error)
+						return error instanceof Error
+							? error.message
+							: String(error)
 					},
-					experimental_transform: smoothStream({
-						delayInMs: 20, // optional: defaults to 10ms
-						chunking: 'word', // optional: defaults to 'word'
-					}),
-					onFinish: async ({
-						response,
-						usage,
-						reasoning,
-						providerMetadata,
-					}) => {
-						const metadata = providerMetadata?.google as
-							| GoogleGenerativeAIProviderMetadata
-							| undefined
-						const groundingMetadata = metadata?.groundingMetadata
-
-						// console.log('GROUNDING')
-						// console.log('____________________________________')
-						// console.log(
-						// 	require('util').inspect(
-						// 		groundingMetadata,
-						// 		false,
-						// 		null,
-						// 		true /* enable colors */,
-						// 	),
-						// )
-						const safetyRatings = metadata?.safetyRatings
-
-						if (token === null) return
-
-						const { session, user } = await validateSessionToken(
-							token,
-						)
-
-						if (!user) return
-
-						const existingChat = await db.query.chat.findFirst({
-							where: (chat, { eq, and }) =>
-								and(eq(chat.id, chatId), eq(chat.userId, user.id)),
-						})
-
-						if (!existingChat) {
-							const title = await generateTitleFromUserMessage({
-								message: userMessage,
-							})
-
-							await db.insert(chat).values({
-								id: chatId,
-								title: title,
-								userId: user.id,
-								createdAt: Date.now(),
-							})
-						}
-
-						await db.insert(message).values({
-							...userMessage,
-							id: generateId(),
-							chatId: chatId,
-							promptTokens: 0,
-							completionTokens: 0,
-							totalTokens: 0,
-							createdAt: Date.now(),
-						})
-
-						const responseMessagesWithoutIncompleteToolCalls =
-							sanitizeResponseMessages({
-								messages: response.messages,
-								reasoning,
-							})
-
-						await db.insert(message).values(
-							responseMessagesWithoutIncompleteToolCalls.map(
-								(message, index) => {
-									const messageId = generateId()
-
-									return {
-										id: messageId,
-										chatId: chatId,
-										role: message.role,
-										content: message.content,
-										model: provider.model,
-										provider: provider.name,
-										providerMetadata:
-											message.role === 'assistant'
-												? providerMetadata
-												: undefined,
-										braveData: brave,
-										jinaData: jina,
-										...usage,
-										createdAt: Date.now() + (index + 1) * 1,
-									}
-								},
-							),
-						)
-					},
-				})
-
-				result.mergeIntoDataStream(dataStream, {
-					sendReasoning: true,
-				})
-			},
-			onError: (error) => {
-				// Error messages are masked by default for security reasons.
-				// If you want to expose the error message to the client, you can do so here:
-				console.log(error)
-				return error instanceof Error ? error.message : String(error)
-			},
-		})
+				}),
+			),
+		)
 	},
 )
 
