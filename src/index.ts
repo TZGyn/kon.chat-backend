@@ -20,7 +20,7 @@ app.use(
 app.use(logger())
 
 app.get('/', (c) => {
-	return c.text('Hello Hono!')
+	return c.redirect(Bun.env.FRONTEND_URL!)
 })
 
 app.get(

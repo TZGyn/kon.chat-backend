@@ -187,8 +187,7 @@ app.get('/login/google/callback', async (c) => {
 	})
 
 	const redirectUrl =
-		(JSON.parse(decodeURI(state)).redirect as string | null) ||
-		'/dashboard'
+		(JSON.parse(decodeURI(state)).redirect as string | null) || '/'
 
 	if (existingUser) {
 		const sessionToken = generateSessionToken()
