@@ -9,7 +9,7 @@ import { Polar } from '@polar-sh/sdk'
 import { db } from '../../lib/db'
 import { user as userTable } from '../../lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { Checkout } from '@polar-sh/hono'
+import { Checkout, CustomerPortal } from '@polar-sh/hono'
 
 const polar = new Polar({
 	accessToken: Bun.env.POLAR_ACCESS_KEY,
@@ -22,7 +22,10 @@ app.get('/plan/basic', async (c) => {
 	const token = getCookie(c, 'session') ?? null
 
 	if (token === null || token.startsWith('free:')) {
-		return c.redirect('/auth/login/google', 302)
+		return c.redirect(
+			'/auth/login/google?redirect=/billing/plan/basic',
+			302,
+		)
 	}
 
 	const { session, user } = await validateSessionToken(token)
@@ -42,6 +45,9 @@ app.get('/plan/basic', async (c) => {
 	if (!polarCustomerId) {
 		const result = await polar.customers.create({
 			email: user.email,
+			metadata: {
+				customerId: user.id,
+			},
 		})
 
 		await db
@@ -59,6 +65,93 @@ app.get('/plan/basic', async (c) => {
 		302,
 	)
 })
+
+app.get('/plan/pro', async (c) => {
+	const token = getCookie(c, 'session') ?? null
+
+	if (token === null || token.startsWith('free:')) {
+		return c.redirect(
+			'/auth/login/google?redirect=/billing/plan/pro',
+			302,
+		)
+	}
+
+	const { session, user } = await validateSessionToken(token)
+
+	if (!user) {
+		return c.redirect('/auth/login/google', 302)
+	}
+
+	if (session !== null) {
+		setSessionTokenCookie(c, token, session.expiresAt)
+	} else {
+		deleteSessionTokenCookie(c)
+	}
+
+	let polarCustomerId = user.polarCustomerId
+
+	if (!polarCustomerId) {
+		const result = await polar.customers.create({
+			email: user.email,
+			metadata: {
+				customerId: user.id,
+			},
+		})
+
+		await db
+			.update(userTable)
+			.set({
+				polarCustomerId: result.id,
+			})
+			.where(eq(userTable.id, user.id))
+
+		polarCustomerId = result.id
+	}
+
+	return c.redirect(
+		`/billing/checkout?productPriceId=${Bun.env.POLAR_PRO_PLAN_PRICE_ID}&customerId=${polarCustomerId}`,
+		302,
+	)
+})
+
+app.get(
+	'/checkout',
+	Checkout({
+		accessToken: Bun.env.POLAR_ACCESS_KEY, // Or set an environment variable to POLAR_ACCESS_TOKEN
+		successUrl: Bun.env.POLAR_SUCCESS_URL,
+		server:
+			Bun.env.APP_ENV === 'production' ? 'production' : 'sandbox', // Use sandbox if you're testing Polar - omit the parameter or pass 'production' otherwise
+	}),
+)
+
+app.get(
+	'/portal',
+	CustomerPortal({
+		accessToken: Bun.env.POLAR_ACCESS_KEY, // Or set an environment variable to POLAR_ACCESS_TOKEN
+		getCustomerId: async (event) => {
+			const token = getCookie(event, 'session') ?? null
+
+			if (token === null) {
+				return ''
+			}
+			const { session, user } = await validateSessionToken(token)
+
+			if (!user) {
+				return ''
+			}
+
+			if (session !== null) {
+				setSessionTokenCookie(event, token, session.expiresAt)
+			} else {
+				deleteSessionTokenCookie(event)
+			}
+
+			return user.polarCustomerId || ''
+		}, // Function to resolve a Polar Customer ID
+		server:
+			Bun.env.APP_ENV === 'production' ? 'production' : 'sandbox', // Use sandbox if you're testing Polar - omit the parameter or pass 'production' otherwise
+	}),
+)
 
 app.get(
 	'/checkout',
