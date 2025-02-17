@@ -18,8 +18,7 @@ import { getCookie } from 'hono/cookie'
 
 // For extending the Zod schema with OpenAPI properties
 import 'zod-openapi/extend'
-import { resolver, validator as zValidator } from 'hono-openapi/zod'
-import { describeRoute, openAPISpecs } from 'hono-openapi'
+import { validator as zValidator } from 'hono-openapi/zod'
 import {
 	deleteSessionTokenCookie,
 	setSessionTokenCookie,
@@ -37,7 +36,6 @@ import { jinaRead } from '../../lib/ai/jina'
 import { braveSearch } from '../../lib/ai/brave'
 import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
-import { Redis } from '@upstash/redis'
 import { stream } from 'hono/streaming'
 import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
@@ -218,13 +216,34 @@ app.post(
 		}
 
 		if (search && limit.searchCredit + limit.searchLimit <= 0) {
-			return c.text('You have reached the limit for web search')
+			return c.text('You have reached the limit for web search', {
+				status: 400,
+			})
 		}
 
 		const chatId = c.req.param('chat_id')
 
-		const coreMessages = convertToCoreMessages(messages)
+		let coreMessages = convertToCoreMessages(messages)
 		const userMessage = getMostRecentUserMessage(coreMessages)
+
+		if (provider.name === 'groq') {
+			coreMessages = coreMessages.map((message) => {
+				if (message.role === 'user') {
+					if (Array.isArray(message.content)) {
+						return {
+							...message,
+							content: message.content.filter((content) => {
+								if (content.type === 'text') return true
+								return false
+							}),
+						}
+					} else {
+						return message
+					}
+				}
+				return message
+			})
+		}
 
 		if (!userMessage) {
 			return c.text('No User Message', { status: 400 })
@@ -347,23 +366,23 @@ app.post(
 								const { text: query } = await generateText({
 									model: google('gemini-2.0-flash-001'),
 									system: `
-							You are a search query generator
-							You will be provided a prompt from a user
-							You will build a single search query text that will be later be used to fulfill the info needed for that prompt
-							Always assume your knowledge is out of date
+										You are a search query generator
+										You will be provided a prompt from a user
+										You will build a single search query text that will be later be used to fulfill the info needed for that prompt
+										Always assume your knowledge is out of date
 
-							Example of incorrect searches:
-							- prompt: who is the current us president
-							- query: 2024 president
-							This is wrong because you assume this year is 2024
+										Example of incorrect searches:
+										- prompt: who is the current us president
+										- query: 2024 president
+										This is wrong because you assume this year is 2024
 
-							Rather a search query like this would be better
-							- prompt: who won the most recent superbowl
-							- query: latest superbowl result
-							This is correct because the query doesnt assume any information but still contains the neccessary query data to fulfill the prompt
+										Rather a search query like this would be better
+										- prompt: who won the most recent superbowl
+										- query: latest superbowl result
+										This is correct because the query doesnt assume any information but still contains the neccessary query data to fulfill the prompt
 
-							Current date is ${new Date().toString()}
-						`,
+										Current date is ${new Date().toString()}
+									`,
 									prompt: prompt,
 								})
 
@@ -488,29 +507,29 @@ app.post(
 							model: model,
 							messages: coreMessages,
 							system: `
-						You are a chat assistant
-						${
-							!searchGrounding &&
-							`
-								Dont call any tools as there are no tools
-								Only use the information provided to you
-								If theres is a need for search, the search result will be provided to you
-							`
-						}
+								You are a chat assistant
+								${
+									!searchGrounding &&
+									`
+										Dont call any tools as there are no tools
+										Only use the information provided to you
+										If theres is a need for search, the search result will be provided to you
+									`
+								}
 
-						if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
-						example:
+								if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
+								example:
 
-						(inline) 
-						Pythagorean theorem: $a^2+b^2=c^2$
+								(inline) 
+								Pythagorean theorem: $a^2+b^2=c^2$
 
-						(block)
-						$$
-						\mathcal{L}\{f\}(s) = \int_0^{\infty} {f(t)e^{-st}dt}
-						$$
+								(block)
+								$$
+								\mathcal{L}\{f\}(s) = \int_0^{\infty} {f(t)e^{-st}dt}
+								$$
 
-						${searchMessage}
-					`,
+								${searchMessage}
+							`,
 							onChunk: ({ chunk }) => {},
 							onStepFinish: (data) => {
 								const metadata = data.providerMetadata?.google as
