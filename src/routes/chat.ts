@@ -249,6 +249,20 @@ app.post(
 			return c.text('No User Message', { status: 400 })
 		}
 
+		if (limit.plan === 'free') {
+			if (Array.isArray(userMessage.content)) {
+				if (
+					userMessage.content.some((content) => {
+						return content.type !== 'text'
+					})
+				) {
+					return c.text('No image upload allowed for free plan', {
+						status: 400,
+					})
+				}
+			}
+		}
+
 		let model
 
 		if (provider.name === 'openai') {
