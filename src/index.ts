@@ -14,9 +14,7 @@ import WebhookRoutes from './routes/webhook'
 import BillingRoutes from './routes/billing'
 
 const app = new Hono()
-app.use(
-	cors({ origin: ['http://localhost:5173'], credentials: true }),
-)
+app.use(cors({ origin: [Bun.env.FRONTEND_URL!], credentials: true }))
 app.use(logger())
 
 app.get('/', (c) => {
