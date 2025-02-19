@@ -225,6 +225,7 @@ app.post(
 
 		let coreMessages = convertToCoreMessages(messages)
 		const userMessage = getMostRecentUserMessage(coreMessages)
+		const userMessageDate = Date.now()
 
 		if (provider.name === 'groq') {
 			coreMessages = coreMessages.map((message) => {
@@ -381,8 +382,16 @@ app.post(
 									model: google('gemini-2.0-flash-001'),
 									system: `
 										You are a search query generator
-										You will be provided a prompt from a user
+										You will be provided a prompt from a user and their recent messages with a chatbot
 										You will build a single search query text that will be later be used to fulfill the info needed for that prompt
+										For example:
+										- A user is having a conversation about a certain person with the chatbot
+										- When the user ask to help find the person's information
+										- The user will not always type out the specify prompt like (help me find x person's facebook profile)
+										- They might type something like (help me find his/her profile)
+										
+										So you must evaluate the previous messages and understand the context to generate the search query
+
 										Always assume your knowledge is out of date
 
 										Example of incorrect searches:
@@ -397,7 +406,7 @@ app.post(
 
 										Current date is ${new Date().toString()}
 									`,
-									prompt: prompt,
+									messages: coreMessages,
 								})
 
 								dataStream.writeData({
@@ -505,12 +514,12 @@ app.post(
 							searchMessage = ''
 						} else {
 							searchMessage = `
-						User has also requested for a search function 
-						You will be provided the web search data that was found
-						Use them to answer the user prompt
-						data:
-						${JSON.stringify(jinaData.map((data) => data.data))}
-					`
+								User has also requested for a search function 
+								You will be provided the web search data that was found
+								Use them to answer the user prompt
+								data:
+								${JSON.stringify(jinaData.map((data) => data.data))}
+							`
 						}
 
 						const jina = jinaData
@@ -634,7 +643,7 @@ app.post(
 									promptTokens: 0,
 									completionTokens: 0,
 									totalTokens: 0,
-									createdAt: Date.now(),
+									createdAt: userMessageDate,
 								})
 
 								const responseMessagesWithoutIncompleteToolCalls =
@@ -643,10 +652,13 @@ app.post(
 										reasoning,
 									})
 
+								const now = Date.now()
+
 								await db.insert(message).values(
 									responseMessagesWithoutIncompleteToolCalls.map(
 										(message, index) => {
 											const messageId = generateId()
+											const date = now + index
 
 											return {
 												id: messageId,
@@ -662,7 +674,7 @@ app.post(
 												braveData: brave,
 												jinaData: jina,
 												...usage,
-												createdAt: Date.now() + (index + 1) * 1,
+												createdAt: date,
 											}
 										},
 									),
