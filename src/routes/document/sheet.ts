@@ -152,6 +152,12 @@ app.post(
 			}
 		}
 
+		if (search && limit.searchCredit + limit.searchLimit <= 0) {
+			return c.text('You have reached the limit for web search', {
+				status: 400,
+			})
+		}
+
 		let coreMessages = convertToCoreMessages(messages)
 		const userMessage = getMostRecentUserMessage(coreMessages)
 		const userMessageDate = Date.now()
