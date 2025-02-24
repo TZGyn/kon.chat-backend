@@ -1,0 +1,685 @@
+import { zValidator } from '@hono/zod-validator'
+import {
+	convertToCoreMessages,
+	createDataStream,
+	extractReasoningMiddleware,
+	generateId,
+	smoothStream,
+	streamText,
+	tool,
+	wrapLanguageModel,
+} from 'ai'
+import { Hono } from 'hono'
+import { getCookie } from 'hono/cookie'
+import { stream } from 'hono/streaming'
+import { z } from 'zod'
+import {
+	deleteSessionTokenCookie,
+	setSessionTokenCookie,
+	validateSessionToken,
+} from '../../../lib/auth/session'
+import { redis } from '../../../lib/redis'
+import { encodeHexLowerCase } from '@oslojs/encoding'
+import { sha256 } from '@oslojs/crypto/sha2'
+import { getMostRecentUserMessage } from '../../../lib/utils'
+import {
+	anthropic,
+	google,
+	groq,
+	openai,
+} from '../../../lib/ai/model'
+import * as mathjs from 'mathjs'
+import { db } from '../../../lib/db'
+import { user } from '../../../lib/db/schema'
+import { eq, sql } from 'drizzle-orm'
+
+const app = new Hono()
+
+app.post(
+	'/',
+	zValidator(
+		'json',
+		z.object({
+			messages: z.any(),
+			provider: z
+				.union([
+					z.object({
+						name: z.literal('openai'),
+						model: z.enum(['gpt-4o', 'gpt-4o-mini', 'o3-mini']),
+					}),
+					z.object({
+						name: z.literal('google'),
+						model: z.enum(['gemini-2.0-flash-001']),
+					}),
+					z.object({
+						name: z.literal('groq'),
+						model: z.enum([
+							'deepseek-r1-distill-llama-70b',
+							'llama-3.3-70b-versatile',
+						]),
+					}),
+					z.object({
+						name: z.literal('anthropic'),
+						model: z.enum(['claude-3-5-sonnet-latest']),
+					}),
+				])
+				.default({ name: 'google', model: 'gemini-2.0-flash-001' }),
+			spreadSheetData: z.any().array().array(),
+			selectedSheetData: z
+				.object({
+					topLeftRow: z.number(),
+					topLeftColumn: z.number(),
+					bottomRightRow: z.number(),
+					bottomRightColumn: z.number(),
+					data: z.any().array(),
+				})
+				.array(),
+			search: z.boolean().default(false),
+			searchGrounding: z.boolean().default(false),
+		}),
+	),
+	async (c) => {
+		const {
+			messages,
+			provider,
+			search,
+			searchGrounding,
+			spreadSheetData,
+			selectedSheetData,
+		} = c.req.valid('json')
+
+		let token = getCookie(c, 'session') ?? null
+		if (!token) {
+			token = `free:${generateId()}`
+			setSessionTokenCookie(
+				c,
+				token,
+				Date.now() + 1000 * 60 * 60 * 24 * 1,
+			)
+			await redis.set(
+				token + '-limit',
+				{
+					plan: 'free',
+					standardLimit: 10,
+					premiumLimit: 0,
+					standardCredit: 0,
+					premiumCredit: 0,
+					searchLimit: 0,
+					searchCredit: 0,
+				},
+				{ ex: 60 * 60 * 24 },
+			)
+		}
+
+		let limit = await redis.get<{
+			plan: 'free' | 'basic' | 'pro' | 'owner'
+			standardLimit: number
+			premiumLimit: number
+			standardCredit: number
+			premiumCredit: number
+			searchLimit: number
+			searchCredit: number
+		}>(
+			(token.startsWith('free:')
+				? token
+				: encodeHexLowerCase(
+						sha256(new TextEncoder().encode(token)),
+				  )) + '-limit',
+		)
+
+		if (!limit) {
+			if (token.startsWith('free:')) {
+				return c.text('You have been rate limited', { status: 400 })
+			} else {
+				const { session, user } = await validateSessionToken(token)
+				if (!user) return c.text('Invalid User', { status: 400 })
+
+				if (session !== null) {
+					setSessionTokenCookie(c, token, session.expiresAt)
+				} else {
+					deleteSessionTokenCookie(c)
+				}
+
+				limit = {
+					plan: user.plan,
+					standardCredit: user.standardChatCredit,
+					premiumCredit: user.premiumChatCredit,
+					premiumLimit: user.premiumChatLimit,
+					standardLimit: user.standardChatLimit,
+					searchCredit: user.searchCredit,
+					searchLimit: user.searchLimit,
+				}
+			}
+		}
+
+		let coreMessages = convertToCoreMessages(messages)
+		const userMessage = getMostRecentUserMessage(coreMessages)
+		const userMessageDate = Date.now()
+
+		if (!userMessage) {
+			return c.text('No User Message', { status: 400 })
+		}
+
+		let model
+
+		if (provider.name === 'openai') {
+			if (!token) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			if (limit.plan === 'free') {
+				return c.text(
+					'You need to have basic or higher plan to use this model',
+					{
+						status: 400,
+					},
+				)
+			}
+
+			if (limit.standardLimit + limit.standardCredit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
+
+			model = openai(provider.model)
+		} else if (provider.name === 'google') {
+			if (limit.standardLimit + limit.standardCredit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
+			model = google(provider.model, {
+				useSearchGrounding: searchGrounding,
+				structuredOutputs: false,
+			})
+		} else if (provider.name === 'groq') {
+			if (!token) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			if (limit.plan === 'free') {
+				return c.text(
+					'You need to have basic or higher plan to use this model',
+					{
+						status: 400,
+					},
+				)
+			}
+
+			if (limit.standardLimit + limit.standardCredit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
+
+			if (provider.model === 'deepseek-r1-distill-llama-70b') {
+				model = wrapLanguageModel({
+					model: groq(provider.model),
+					middleware: extractReasoningMiddleware({
+						tagName: 'think',
+					}),
+				})
+			} else {
+				model = groq(provider.model)
+			}
+		} else if (provider.name === 'anthropic') {
+			if (!token) {
+				return c.text('You have to be logged in to use this model', {
+					status: 400,
+				})
+			}
+
+			if (limit.plan !== 'pro') {
+				return c.text('You need to have pro plan to use this model', {
+					status: 400,
+				})
+			}
+
+			if (limit.premiumCredit + limit.premiumLimit <= 0) {
+				return c.text('You have reached the limit', {
+					status: 400,
+				})
+			}
+			model = anthropic(provider.model)
+		} else {
+			return c.text('Invalid Model', { status: 400 })
+		}
+
+		return stream(c, (stream) =>
+			stream.pipe(
+				createDataStream({
+					execute: async (dataStream) => {
+						dataStream.writeMessageAnnotation({
+							type: 'model',
+							model: provider.model,
+						})
+
+						dataStream.writeData({
+							type: 'message',
+							message: 'Understanding prompt',
+						})
+
+						dataStream.writeData({
+							type: 'message',
+							message: 'Generating Response',
+						})
+
+						const result = streamText({
+							model: model,
+							messages: coreMessages,
+							system: `
+								You are a excel assistant
+								${
+									!searchGrounding &&
+									`
+										Dont call any tools as there are no tools
+										Only use the information provided to you
+										If theres is a need for search, the search result will be provided to you
+									`
+								}
+
+								DO NOT ASK USER FOR CONFIRMATION UNLESS YOU ARE TOLD TO DO SO
+								Example:
+								If a user ask u to generate random data without specifying the format like email, dont ask them which format do they want
+								Try your best to predict the answer based on the data given to you
+
+								Try to complete all the tasks in one go before returning
+
+								if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
+								example:
+
+								(inline) 
+								Pythagorean theorem: $a^2+b^2=c^2$
+
+								(block)
+								$$
+								\mathcal{L}\{f\}(s) = \int_0^{\infty} {f(t)e^{-st}dt}
+								$$
+
+								You will be provided the current spreadsheet data in JSON array format
+								it will be an array of arrays
+
+								You may use index for locating cells and rows (index starts with 0)
+
+								User may ask for specific cells using row number and column alphabet
+								Row number will be display as 1-indexed but it is 0-indexed under the hood
+								Assume user is using 1-indexed and minus 1 with getting the data unless the user specify not to minus
+								As for column alphabet, a tool will be provided to you to convert the alphabet to column number (in 0 indexed as well)
+								Another tool will be provided to you to convert column number (0-indexed) back to the alphabet for better user experience
+
+								A tool will also be given to you to get the cell value given the row and column number in 0-indexed
+								If you need for are asked for a cell value, you must use it instead of guessing it yourself
+
+								2 tools will also be given to you to set the cell value 
+								One will be used for setting individual cell value, given a row and column number in 0-indexed and the data
+								Another will be used for setting a range cell values, given an array row and column number in 0-indexed and the data
+								The values set using the tools will be highlighted
+								So if a range of cell values is updated, but you used individual cell update instead of range update
+								The highlight will not be in range, (worse for user experience)
+								So try to use as many range update as possible
+
+								Dont worry about row/column number exceeding array size
+								For example, if the user ask to generate 10 rows of data, but the spreadsheet data given to you only has 2 rows,
+								You can ask to set cell value at row 3,4,5 and so on.
+								Array size validation will not be handle here
+
+								Here are the available tools 
+								- convertColumnFromAlphabetToNumber
+								- convertColumnFromNumberToAlphabet
+								- getCellValue
+								- getRangeValues
+								- setSheetCell
+								- setSheetCellRange
+								- unsetSheetRange
+								- deleteRows
+								- deleteColumns
+								- calculate
+
+								Provide the result at the end
+
+								Here is the spreadsheet data:
+								${JSON.stringify(spreadSheetData)}
+
+								You will be given user selected sheet data
+								The data will be in an array of object since the user can select multiple ranges
+								Each range will have a top left row (0-indexed) column (1-indexed) and bottom right row (0-indexed) column (1-indexed)
+								And each range will have the selected data
+
+								Since the data is not human friendly, when asked to output you must make it human readable (preferably in table form)
+								Here is the user selected sheet data:
+								${JSON.stringify(selectedSheetData)}
+							`,
+							tools: {
+								convertColumnFromAlphabetToNumber: tool({
+									description:
+										'Convert Alphabet column like (AA) to column number (0-indexed)',
+									parameters: z.object({
+										column: z
+											.string()
+											.describe('Column alphabet like (AB)'),
+									}),
+									execute: async ({ column }) => {
+										const letters = column.toUpperCase()
+										for (var p = 0, n = 0; p < letters.length; p++) {
+											n = letters[p].charCodeAt(0) - 64 + n * 26
+										}
+										return n - 1
+									},
+								}),
+								convertColumnFromNumberToAlphabet: tool({
+									description:
+										'Convert number column (0-indexed) back to alphabet (AA)',
+									parameters: z.object({
+										column: z
+											.number()
+											.describe('Column number (start from 0)'),
+									}),
+									execute: async ({ column }) => {
+										let num = column
+										let letters = ''
+										while (num >= 0) {
+											letters =
+												'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[num % 26] +
+												letters
+											num = Math.floor(num / 26) - 1
+										}
+										return letters
+									},
+								}),
+								getCellValue: tool({
+									description:
+										'Get value of cell given a row and column number',
+									parameters: z.object({
+										row: z
+											.number()
+											.describe('Row number (0-indexed)'),
+										column: z
+											.number()
+											.describe('Column number (0-indexed)'),
+									}),
+									execute: async ({ row, column }) => {
+										if (spreadSheetData.length < row) {
+											return ''
+										}
+										const rowData = spreadSheetData[row]
+										if (!rowData) return ''
+										return spreadSheetData[row][column] ?? ''
+									},
+								}),
+								getRangeValues: tool({
+									description:
+										'Get all values given a start and end position',
+									parameters: z.object({
+										rowStart: z
+											.number()
+											.describe('Row start number (0-indexed)'),
+										columnStart: z
+											.number()
+											.describe('Column start number (0-indexed)'),
+										rowEnd: z
+											.number()
+											.describe('Row end number (0-indexed)'),
+										columnEnd: z
+											.number()
+											.describe('Column end number (0-indexed)'),
+									}),
+									execute: async ({
+										columnEnd,
+										columnStart,
+										rowEnd,
+										rowStart,
+									}) => {
+										let rangeData = []
+										let row = rowStart
+										while (row <= rowEnd) {
+											let data = []
+											let col = columnStart
+											while (col <= columnEnd) {
+												let element = ''
+												if (
+													spreadSheetData.length >= row &&
+													spreadSheetData[row]
+												) {
+													element = spreadSheetData[row][col] || ''
+												}
+												data.push(element)
+												col++
+											}
+											rangeData.push(data)
+											row++
+										}
+										return rangeData
+									},
+								}),
+								setSheetCell: tool({
+									description:
+										'Set sheet cell data given row, column and the data to set',
+									parameters: z.object({
+										row: z
+											.number()
+											.describe('Row number (0-indexed)'),
+										column: z
+											.number()
+											.describe('Column number (0-indexed)'),
+										data: z
+											.string()
+											.describe('Data to set in the cell'),
+									}),
+									execute: async (data) => {
+										return data
+									},
+								}),
+								setSheetCellRange: tool({
+									description:
+										'Set sheet cells given an array of row, column and the data to set',
+									parameters: z.object({
+										data: z.array(
+											z.object({
+												row: z
+													.number()
+													.describe('Row number (0-indexed)'),
+												column: z
+													.number()
+													.describe('Column number (0-indexed)'),
+												data: z
+													.string()
+													.describe('Data to set in the cell'),
+											}),
+										),
+									}),
+									execute: async ({ data }) => {
+										return data
+									},
+								}),
+								unsetSheetRange: tool({
+									description:
+										'Unset sheet cell value given an array of row and column',
+									parameters: z.object({
+										data: z.array(
+											z.object({
+												row: z
+													.number()
+													.describe('Row number (0-indexed)'),
+												column: z
+													.number()
+													.describe('Column number (0-indexed)'),
+											}),
+										),
+									}),
+									execute: async ({ data }) => {
+										return data
+									},
+								}),
+								deleteRows: tool({
+									description:
+										'Delete sheet rows given an array of row number',
+									parameters: z.object({
+										data: z.array(
+											z.number().describe('Row number (0-indexed)'),
+										),
+									}),
+									execute: async ({ data }) => {
+										return data
+									},
+								}),
+								deleteColumns: tool({
+									description:
+										'Delete sheet columns given an array of row number',
+									parameters: z.object({
+										data: z.array(
+											z
+												.number()
+												.describe('Column number (0-indexed)'),
+										),
+									}),
+									execute: async ({ data }) => {
+										return data
+									},
+								}),
+								calculate: tool({
+									description:
+										'A tool for evaluating mathematical expressions. ' +
+										'Example expressions: ' +
+										"'1.2 * (2 + 4.5)', '12.7 cm to inch', 'sin(45 deg) ^ 2'.",
+									parameters: z.object({ expression: z.string() }),
+									execute: async ({ expression }) =>
+										mathjs.evaluate(expression),
+								}),
+							},
+							maxSteps: 10,
+							onChunk: ({ chunk }) => {},
+							onStepFinish: (data) => {},
+							onError: (error) => {
+								console.log(error)
+							},
+							experimental_transform: smoothStream({
+								delayInMs: 10, // optional: defaults to 10ms
+								chunking: 'word', // optional: defaults to 'word'
+							}),
+							onFinish: async ({
+								response,
+								usage,
+								reasoning,
+								providerMetadata,
+							}) => {
+								const { session, user: loggedInUser } =
+									await validateSessionToken(token)
+
+								const standardModels = [
+									'gpt-4o',
+									'gpt-4o-mini',
+									'o3-mini',
+									'gemini-2.0-flash-001',
+									'deepseek-r1-distill-llama-70b',
+									'llama-3.3-70b-versatile',
+								]
+
+								const premiumModels = ['claude-3-5-sonnet-latest']
+
+								if (!loggedInUser) return
+								const minusSearchLimit =
+									loggedInUser.searchLimit > 0 && search
+								const minusSearchCredit =
+									!minusSearchLimit &&
+									loggedInUser.searchCredit > 0 &&
+									search
+
+								const minusStandardLimit =
+									loggedInUser.standardChatLimit > 0 &&
+									standardModels.includes(provider.model)
+								const minusStandardCredit =
+									!minusStandardLimit &&
+									loggedInUser.standardChatCredit > 0 &&
+									standardModels.includes(provider.model)
+
+								const minusPremiumLimit =
+									loggedInUser.premiumChatLimit > 0 &&
+									premiumModels.includes(provider.model)
+								const minusPremiumCredit =
+									!minusPremiumLimit &&
+									loggedInUser.premiumChatCredit > 0 &&
+									premiumModels.includes(provider.model)
+
+								const [updatedUser] = await db
+									.update(user)
+									.set({
+										searchLimit: sql`${user.searchLimit} - ${
+											minusSearchLimit ? '1' : '0'
+										}`,
+										searchCredit: sql`${user.searchCredit} - ${
+											minusSearchCredit ? '1' : '0'
+										}`,
+										standardChatLimit: sql`${
+											user.standardChatLimit
+										} - ${minusStandardLimit ? '1' : '0'}`,
+										standardChatCredit: sql`${
+											user.standardChatCredit
+										} - ${minusStandardCredit ? '1' : '0'}`,
+										premiumChatLimit: sql`${
+											user.premiumChatLimit
+										} - ${minusPremiumLimit ? '1' : '0'}`,
+										premiumChatCredit: sql`${
+											user.premiumChatCredit
+										} - ${minusPremiumCredit ? '1' : '0'}`,
+									})
+									.where(eq(user.id, loggedInUser.id))
+									.returning()
+
+								const currentUser = await db.query.user.findFirst({
+									where: (user, { eq }) =>
+										eq(user.id, loggedInUser.id),
+									with: {
+										sessions: {
+											where: (session, { gte }) =>
+												gte(session.expiresAt, Date.now()),
+										},
+									},
+								})
+
+								if (!currentUser) return
+
+								await Promise.all(
+									currentUser.sessions.map(async (session) => {
+										await redis.set(
+											session.id + '-limit',
+											{
+												plan: updatedUser.plan,
+												standardLimit: updatedUser.standardChatLimit,
+												premiumLimit: updatedUser.premiumChatLimit,
+												standardCredit:
+													updatedUser.standardChatCredit,
+												premiumCredit: updatedUser.premiumChatCredit,
+												searchLimit: updatedUser.searchLimit,
+												searchCredit: updatedUser.searchCredit,
+											},
+											{ ex: 60 * 60 * 24 },
+										)
+									}),
+								)
+							},
+						})
+
+						result.mergeIntoDataStream(dataStream, {
+							sendReasoning: true,
+						})
+					},
+					onError: (error) => {
+						// Error messages are masked by default for security reasons.
+						// If you want to expose the error message to the client, you can do so here:
+						console.log(error)
+						return error instanceof Error
+							? error.message
+							: String(error)
+					},
+				}),
+			),
+		)
+	},
+)
+
+export default app

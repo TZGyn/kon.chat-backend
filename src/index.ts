@@ -12,6 +12,7 @@ import ChatRoutes from './routes/chat'
 import FileUploadRoutes from './routes/file-upload'
 import WebhookRoutes from './routes/webhook'
 import BillingRoutes from './routes/billing'
+import DocumentsRoutes from './routes/document'
 
 const app = new Hono()
 app.use(cors({ origin: [Bun.env.FRONTEND_URL!], credentials: true }))
@@ -55,6 +56,7 @@ app.route('/chat', ChatRoutes)
 app.route('/file-upload', FileUploadRoutes)
 app.route('/webhook', WebhookRoutes)
 app.route('/billing', BillingRoutes)
+app.route('/documents', DocumentsRoutes)
 
 Bun.serve({
 	...app,

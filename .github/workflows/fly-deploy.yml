@@ -12,12 +12,6 @@ jobs:
     concurrency: deploy-group # optional: ensure only one action runs at a time
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - name: migrate-db
-        env: # Or as an environment variable
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: bun run db:migrate
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --remote-only
         env:
