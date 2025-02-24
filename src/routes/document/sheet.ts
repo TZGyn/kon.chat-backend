@@ -89,26 +89,10 @@ app.post(
 		} = c.req.valid('json')
 
 		let token = getCookie(c, 'session') ?? null
-		if (!token) {
-			token = `free:${generateId()}`
-			setSessionTokenCookie(
-				c,
-				token,
-				Date.now() + 1000 * 60 * 60 * 24 * 1,
-			)
-			await redis.set(
-				token + '-limit',
-				{
-					plan: 'free',
-					standardLimit: 10,
-					premiumLimit: 0,
-					standardCredit: 0,
-					premiumCredit: 0,
-					searchLimit: 0,
-					searchCredit: 0,
-				},
-				{ ex: 60 * 60 * 24 },
-			)
+		if (!token || token.startsWith('free:')) {
+			return c.text('You must be logged in to use this feature', {
+				status: 400,
+			})
 		}
 
 		let limit = await redis.get<{
