@@ -1,6 +1,6 @@
 #!/bin/bash
 if [ "$RELEASE_COMMAND" = "1" ]; then
-    bun src/index.ts
-else
     echo "false"
+else
+    bun src/index.ts
 fi
