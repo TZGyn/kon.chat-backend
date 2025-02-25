@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { User } from '../../lib/db/type'
+import { Session, User } from '../../lib/db/type'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
 	createSession,
@@ -67,6 +67,36 @@ app.get('/me', async (c) => {
 		setSessionTokenCookie(c, token, session.expiresAt)
 	} else {
 		deleteSessionTokenCookie(c)
+	}
+
+	const currentUser = await db.query.user.findFirst({
+		where: (user, { eq }) => eq(user.id, user.id),
+		with: {
+			sessions: {
+				where: (session, { gte }) =>
+					gte(session.expiresAt, Date.now()),
+			},
+		},
+	})
+
+	if (currentUser) {
+		await Promise.all(
+			currentUser.sessions.map(async (session) => {
+				await redis.set(
+					session.id + '-limit',
+					{
+						plan: currentUser.plan,
+						standardLimit: currentUser.standardChatLimit,
+						premiumLimit: currentUser.premiumChatLimit,
+						standardCredit: currentUser.standardChatCredit,
+						premiumCredit: currentUser.premiumChatCredit,
+						searchLimit: currentUser.searchLimit,
+						searchCredit: currentUser.searchCredit,
+					},
+					{ ex: 60 * 60 * 24 },
+				)
+			}),
+		)
 	}
 
 	return c.json({
