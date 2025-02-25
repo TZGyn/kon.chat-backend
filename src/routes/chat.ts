@@ -139,7 +139,10 @@ app.post(
 					}),
 					z.object({
 						name: z.literal('anthropic'),
-						model: z.enum(['claude-3-5-sonnet-latest']),
+						model: z.enum([
+							'claude-3-5-sonnet-latest',
+							'claude-3-7-sonnet-20250219',
+						]),
 					}),
 				])
 				.default({ name: 'google', model: 'gemini-2.0-flash-001' }),
@@ -265,7 +268,7 @@ app.post(
 		}
 
 		let model
-
+		let providerOptions = {}
 		if (provider.name === 'openai') {
 			if (!token) {
 				return c.text('You have to be logged in to use this model', {
@@ -349,6 +352,13 @@ app.post(
 				})
 			}
 			model = anthropic(provider.model)
+			if (provider.model === 'claude-3-7-sonnet-20250219') {
+				providerOptions = {
+					anthropic: {
+						thinking: { type: 'enabled', budgetTokens: 12000 },
+					},
+				}
+			}
 		} else {
 			return c.text('Invalid Model', { status: 400 })
 		}
@@ -553,6 +563,7 @@ app.post(
 
 								${searchMessage}
 							`,
+							providerOptions: providerOptions,
 							onChunk: ({ chunk }) => {},
 							onStepFinish: (data) => {
 								const metadata = data.providerMetadata?.google as
@@ -611,7 +622,10 @@ app.post(
 									'llama-3.3-70b-versatile',
 								]
 
-								const premiumModels = ['claude-3-5-sonnet-latest']
+								const premiumModels = [
+									'claude-3-5-sonnet-latest',
+									'claude-3-7-sonnet-20250219',
+								]
 
 								if (!loggedInUser) return
 
