@@ -78,6 +78,20 @@ export const message = pgTable('message', {
 	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
 
+export const youtube = pgTable('youtube', (t) => ({
+	id: t.varchar('id', { length: 255 }).primaryKey().notNull(),
+	channelName: t.text('channel_name').notNull(),
+	channelUrl: t.varchar('channel_url', { length: 255 }).notNull(),
+	channelThumbnailUrl: t.text('channel_thumbnail_url').notNull(),
+	title: t.text('title').notNull(),
+	description: t.text('description').notNull(),
+	descriptionHTML: t.text('description_html').notNull(),
+	transcript: t.json('transcript').notNull(),
+	summary: t.text('summary').notNull(),
+	uploadTime: t.text('upload_time').notNull(),
+	createdAt: t.bigint('created_at', { mode: 'number' }).notNull(),
+}))
+
 export const userRelations = relations(user, ({ many }) => ({
 	sessions: many(session),
 }))

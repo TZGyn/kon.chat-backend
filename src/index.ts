@@ -13,6 +13,7 @@ import FileUploadRoutes from './routes/file-upload'
 import WebhookRoutes from './routes/webhook'
 import BillingRoutes from './routes/billing'
 import DocumentsRoutes from './routes/document'
+import YoutubeRoutes from './routes/youtube'
 
 const app = new Hono()
 app.use(cors({ origin: [Bun.env.FRONTEND_URL!], credentials: true }))
@@ -57,6 +58,7 @@ app.route('/file-upload', FileUploadRoutes)
 app.route('/webhook', WebhookRoutes)
 app.route('/billing', BillingRoutes)
 app.route('/documents', DocumentsRoutes)
+app.route('/youtube', YoutubeRoutes)
 
 export default {
 	fetch: app.fetch,
