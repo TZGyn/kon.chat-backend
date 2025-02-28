@@ -8,6 +8,13 @@
       "when": 1739891172793,
       "tag": "0000_yellow_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1740747014956,
+      "tag": "0001_low_wolfsbane",
+      "breakpoints": true
     }
   ]
 }
