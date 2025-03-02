@@ -1,0 +1,42 @@
+import { z } from 'zod'
+
+export const modelSchema = z
+	.union([
+		z.object({
+			name: z.literal('openai'),
+			model: z.enum(['gpt-4o', 'gpt-4o-mini', 'o3-mini']),
+		}),
+		z.object({
+			name: z.literal('google'),
+			model: z.enum(['gemini-2.0-flash-001']),
+		}),
+		z.object({
+			name: z.literal('groq'),
+			model: z.enum([
+				'deepseek-r1-distill-llama-70b',
+				'llama-3.3-70b-versatile',
+			]),
+		}),
+		z.object({
+			name: z.literal('anthropic'),
+			model: z.enum([
+				'claude-3-5-sonnet-latest',
+				'claude-3-7-sonnet-20250219',
+			]),
+		}),
+	])
+	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
+
+export const standardModels = [
+	'gpt-4o',
+	'gpt-4o-mini',
+	'o3-mini',
+	'gemini-2.0-flash-001',
+	'deepseek-r1-distill-llama-70b',
+	'llama-3.3-70b-versatile',
+] as const
+
+export const premiumModels = [
+	'claude-3-5-sonnet-latest',
+	'claude-3-7-sonnet-20250219',
+] as const

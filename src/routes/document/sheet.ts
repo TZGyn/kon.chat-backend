@@ -27,6 +27,7 @@ import * as mathjs from 'mathjs'
 import { db } from '$lib/db'
 import { user } from '$lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
+import { modelSchema } from '$lib/model'
 
 const app = new Hono()
 
@@ -36,29 +37,7 @@ app.post(
 		'json',
 		z.object({
 			messages: z.any(),
-			provider: z
-				.union([
-					z.object({
-						name: z.literal('openai'),
-						model: z.enum(['gpt-4o', 'gpt-4o-mini', 'o3-mini']),
-					}),
-					z.object({
-						name: z.literal('google'),
-						model: z.enum(['gemini-2.0-flash-001']),
-					}),
-					z.object({
-						name: z.literal('groq'),
-						model: z.enum([
-							'deepseek-r1-distill-llama-70b',
-							'llama-3.3-70b-versatile',
-						]),
-					}),
-					z.object({
-						name: z.literal('anthropic'),
-						model: z.enum(['claude-3-5-sonnet-latest']),
-					}),
-				])
-				.default({ name: 'google', model: 'gemini-2.0-flash-001' }),
+			provider: modelSchema,
 			spreadSheetData: z.any().array().array(),
 			selectedSheetData: z
 				.object({
