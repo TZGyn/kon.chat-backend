@@ -6,8 +6,8 @@ import {
 	deleteSessionTokenCookie,
 	setSessionTokenCookie,
 	validateSessionToken,
-} from '../../lib/auth/session'
-import { nanoid } from '../../lib/utils'
+} from '$lib/auth/session'
+import { nanoid } from '$lib/utils'
 
 const client = new Bun.S3Client({
 	accessKeyId: Bun.env.S3_ACCESS_KEY_ID,

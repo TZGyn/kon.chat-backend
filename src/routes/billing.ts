@@ -4,10 +4,10 @@ import {
 	deleteSessionTokenCookie,
 	setSessionTokenCookie,
 	validateSessionToken,
-} from '../../lib/auth/session'
+} from '$lib/auth/session'
 import { Polar } from '@polar-sh/sdk'
-import { db } from '../../lib/db'
-import { user as userTable } from '../../lib/db/schema'
+import { db } from '$lib/db'
+import { user as userTable } from '$lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { Checkout, CustomerPortal } from '@polar-sh/hono'
 

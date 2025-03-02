@@ -11,8 +11,8 @@ import {
 	type CoreUserMessage,
 	type UserContent,
 } from 'ai'
-import { getMostRecentUserMessage } from '../../lib/utils'
-import { anthropic, google, groq, openai } from '../../lib/ai/model'
+import { getMostRecentUserMessage } from '$lib/utils'
+import { anthropic, google, groq, openai } from '$lib/ai/model'
 import { z } from 'zod'
 import { getCookie } from 'hono/cookie'
 
@@ -23,23 +23,23 @@ import {
 	deleteSessionTokenCookie,
 	setSessionTokenCookie,
 	validateSessionToken,
-} from '../../lib/auth/session'
+} from '$lib/auth/session'
 
-import { db } from '../../lib/db'
-import { chat, message, user } from '../../lib/db/schema'
+import { db } from '$lib/db'
+import { chat, message, user } from '$lib/db/schema'
 import {
 	generateTitleFromUserMessage,
 	sanitizeResponseMessages,
-} from '../../lib/ai/utils'
+} from '$lib/ai/utils'
 import { and, eq, sql } from 'drizzle-orm'
-import { jinaRead } from '../../lib/ai/jina'
-import { braveSearch } from '../../lib/ai/brave'
+import { jinaRead } from '$lib/ai/jina'
+import { braveSearch } from '$lib/ai/brave'
 import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
 import { stream } from 'hono/streaming'
 import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
-import { redis } from '../../lib/redis'
+import { redis } from '$lib/redis'
 
 const app = new Hono()
 

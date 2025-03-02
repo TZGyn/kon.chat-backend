@@ -1,6 +1,4 @@
 import { Hono } from 'hono'
-import { createMiddleware } from 'hono/factory'
-import { Session, User } from '../../lib/db/type'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
 	createSession,
@@ -9,17 +7,17 @@ import {
 	invalidateSession,
 	setSessionTokenCookie,
 	validateSessionToken,
-} from '../../lib/auth/session'
+} from '$lib/auth/session'
 import {
 	decodeIdToken,
 	generateCodeVerifier,
 	generateState,
 	OAuth2Tokens,
 } from 'arctic'
-import { google } from '../../lib/auth/provider'
-import { db } from '../../lib/db'
-import { user } from '../../lib/db/schema'
-import { redis } from '../../lib/redis'
+import { google } from '$lib/auth/provider'
+import { db } from '$lib/db'
+import { user } from '$lib/db/schema'
+import { redis } from '$lib/redis'
 
 const app = new Hono()
 

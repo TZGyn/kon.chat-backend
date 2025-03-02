@@ -17,20 +17,15 @@ import {
 	deleteSessionTokenCookie,
 	setSessionTokenCookie,
 	validateSessionToken,
-} from '../../../lib/auth/session'
-import { redis } from '../../../lib/redis'
+} from '$lib/auth/session'
+import { redis } from '$lib/redis'
 import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
-import { getMostRecentUserMessage } from '../../../lib/utils'
-import {
-	anthropic,
-	google,
-	groq,
-	openai,
-} from '../../../lib/ai/model'
+import { getMostRecentUserMessage } from '$lib/utils'
+import { anthropic, google, groq, openai } from '$lib/ai/model'
 import * as mathjs from 'mathjs'
-import { db } from '../../../lib/db'
-import { user } from '../../../lib/db/schema'
+import { db } from '$lib/db'
+import { user } from '$lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
 
 const app = new Hono()

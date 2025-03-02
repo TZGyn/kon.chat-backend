@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { Webhooks } from '@polar-sh/hono'
-import { db } from '../../lib/db'
-import { user } from '../../lib/db/schema'
+import { db } from '$lib/db'
+import { user } from '$lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 const app = new Hono()

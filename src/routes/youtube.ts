@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { db } from '../../lib/db'
+import { db } from '$lib/db'
 import {
 	convertToCoreMessages,
 	createDataStream,
@@ -11,22 +11,22 @@ import {
 	wrapLanguageModel,
 	type JSONValue,
 } from 'ai'
-import { anthropic, google, groq, openai } from '../../lib/ai/model'
+import { anthropic, google, groq, openai } from '$lib/ai/model'
 import { Innertube } from 'youtubei.js'
 import { z } from 'zod'
-import { user, youtube } from '../../lib/db/schema'
+import { user, youtube } from '$lib/db/schema'
 import { stream } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { getCookie } from 'hono/cookie'
-import { redis } from '../../lib/redis'
+import { redis } from '$lib/redis'
 import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
 import {
 	deleteSessionTokenCookie,
 	setSessionTokenCookie,
 	validateSessionToken,
-} from '../../lib/auth/session'
-import { getMostRecentUserMessage } from '../../lib/utils'
+} from '$lib/auth/session'
+import { getMostRecentUserMessage } from '$lib/utils'
 import { TranscriptSegment } from 'youtubei.js/dist/src/parser/nodes'
 import { eq, sql } from 'drizzle-orm'
 
