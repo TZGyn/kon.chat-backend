@@ -440,11 +440,11 @@ app.post(
 								if 2 or more timestamps are provided, ie: start to end timestamp
 								wrap them between [] separately: [00:01] - [10:11]
 
-								if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
+								if a math equation is generated, wrap it around $$ for katex inline styling and $$ for block
 								example:
 
 								(inline) 
-								Pythagorean theorem: $a^2+b^2=c^2$
+								Pythagorean theorem: $$a^2+b^2=c^2$$
 
 								(block)
 								$$

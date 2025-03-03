@@ -254,11 +254,11 @@ app.post(
 
 								Try to complete all the tasks in one go before returning
 
-								if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
+								if a math equation is generated, wrap it around $$ for katex inline styling and $$ for block
 								example:
 
 								(inline) 
-								Pythagorean theorem: $a^2+b^2=c^2$
+								Pythagorean theorem: $$a^2+b^2=c^2$$
 
 								(block)
 								$$
