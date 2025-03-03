@@ -27,7 +27,7 @@ import * as mathjs from 'mathjs'
 import { db } from '$lib/db'
 import { user } from '$lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { modelSchema } from '$lib/model'
+import { getModel, modelSchema } from '$lib/model'
 
 const app = new Hono()
 
@@ -124,94 +124,15 @@ app.post(
 			return c.text('No User Message', { status: 400 })
 		}
 
-		let model
+		const { model, error, providerOptions } = getModel({
+			limit,
+			provider,
+			searchGrounding,
+			token,
+		})
 
-		if (provider.name === 'openai') {
-			if (!token) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.plan === 'free') {
-				return c.text(
-					'You need to have basic or higher plan to use this model',
-					{
-						status: 400,
-					},
-				)
-			}
-
-			if (limit.standardLimit + limit.standardCredit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-
-			model = openai(provider.model)
-		} else if (provider.name === 'google') {
-			if (limit.standardLimit + limit.standardCredit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-			model = google(provider.model, {
-				useSearchGrounding: searchGrounding,
-				structuredOutputs: false,
-			})
-		} else if (provider.name === 'groq') {
-			if (!token) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.plan === 'free') {
-				return c.text(
-					'You need to have basic or higher plan to use this model',
-					{
-						status: 400,
-					},
-				)
-			}
-
-			if (limit.standardLimit + limit.standardCredit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-
-			if (provider.model === 'deepseek-r1-distill-llama-70b') {
-				model = wrapLanguageModel({
-					model: groq(provider.model),
-					middleware: extractReasoningMiddleware({
-						tagName: 'think',
-					}),
-				})
-			} else {
-				model = groq(provider.model)
-			}
-		} else if (provider.name === 'anthropic') {
-			if (!token) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.plan !== 'pro') {
-				return c.text('You need to have pro plan to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.premiumCredit + limit.premiumLimit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-			model = anthropic(provider.model)
-		} else {
-			return c.text('Invalid Model', { status: 400 })
+		if (error !== null) {
+			return c.text(error, 400)
 		}
 
 		return stream(c, (stream) =>
@@ -318,6 +239,7 @@ app.post(
 								Here is the user selected sheet data:
 								${JSON.stringify(selectedSheetData)}
 							`,
+							providerOptions,
 							tools: {
 								convertColumnFromAlphabetToNumber: tool({
 									description:

@@ -1,4 +1,10 @@
 import { z } from 'zod'
+import { anthropic, google, groq, openai, xai } from '$lib/ai/model'
+import {
+	extractReasoningMiddleware,
+	LanguageModelV1,
+	wrapLanguageModel,
+} from 'ai'
 
 export const modelSchema = z
 	.union([
@@ -24,6 +30,10 @@ export const modelSchema = z
 				'claude-3-7-sonnet-20250219',
 			]),
 		}),
+		z.object({
+			name: z.literal('xai'),
+			model: z.enum(['grok-2-1212', 'grok-2-vision-1212']),
+		}),
 	])
 	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
 
@@ -40,3 +50,174 @@ export const premiumModels = [
 	'claude-3-5-sonnet-latest',
 	'claude-3-7-sonnet-20250219',
 ] as const
+
+export const getModel = ({
+	provider,
+	searchGrounding,
+	token,
+	limit,
+}: {
+	provider: z.infer<typeof modelSchema>
+	searchGrounding: boolean
+	token: string
+	limit: {
+		plan: 'free' | 'basic' | 'pro' | 'owner'
+		standardLimit: number
+		premiumLimit: number
+		standardCredit: number
+		premiumCredit: number
+		searchLimit: number
+		searchCredit: number
+	}
+}):
+	| {
+			model: LanguageModelV1
+			providerOptions: Record<any, any> | undefined
+			error: null
+	  }
+	| { model: null; providerOptions: null; error: string } => {
+	let model
+	let providerOptions = {}
+	if (provider.name === 'openai') {
+		if (!token) {
+			return {
+				error: 'You have to be logged in to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.plan === 'free') {
+			return {
+				error:
+					'You need to have basic or higher plan to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.standardLimit + limit.standardCredit <= 0) {
+			return {
+				error: 'You have reached the limit',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		model = openai(provider.model)
+	} else if (provider.name === 'google') {
+		if (limit.standardLimit + limit.standardCredit <= 0) {
+			return {
+				error: 'You have reached the limit',
+				model: null,
+				providerOptions: null,
+			}
+		}
+		model = google(provider.model, {
+			useSearchGrounding: searchGrounding,
+		})
+	} else if (provider.name === 'groq') {
+		if (!token) {
+			return {
+				error: 'You have to be logged in to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.plan === 'free') {
+			return {
+				error:
+					'You need to have basic or higher plan to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.standardLimit + limit.standardCredit <= 0) {
+			return {
+				error: 'You have reached the limit',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (provider.model === 'deepseek-r1-distill-llama-70b') {
+			model = wrapLanguageModel({
+				model: groq(provider.model),
+				middleware: extractReasoningMiddleware({
+					tagName: 'think',
+				}),
+			})
+		} else {
+			model = groq(provider.model)
+		}
+	} else if (provider.name === 'anthropic') {
+		if (!token) {
+			return {
+				error: 'You have to be logged in to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.plan !== 'pro') {
+			return {
+				error: 'You need to have pro plan to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.premiumCredit + limit.premiumLimit <= 0) {
+			return {
+				error: 'You have reached the limit',
+				model: null,
+				providerOptions: null,
+			}
+		}
+		model = anthropic(provider.model)
+		if (provider.model === 'claude-3-7-sonnet-20250219') {
+			providerOptions = {
+				anthropic: {
+					thinking: { type: 'enabled', budgetTokens: 12000 },
+				},
+			}
+		}
+	} else if (provider.name === 'xai') {
+		if (!token) {
+			return {
+				error: 'You have to be logged in to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.plan === 'free') {
+			return {
+				error:
+					'You need to have basic or higher plan to use this model',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		if (limit.standardLimit + limit.standardCredit <= 0) {
+			return {
+				error: 'You have reached the limit',
+				model: null,
+				providerOptions: null,
+			}
+		}
+
+		model = xai(provider.model)
+	} else {
+		return {
+			error: 'Invalid Model',
+			model: null,
+			providerOptions: null,
+		}
+	}
+
+	return { model, providerOptions, error: null }
+}

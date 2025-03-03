@@ -40,7 +40,7 @@ import { stream } from 'hono/streaming'
 import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
 import { redis } from '$lib/redis'
-import { modelSchema } from '$lib/model'
+import { getModel, modelSchema } from '$lib/model'
 
 const app = new Hono()
 
@@ -243,100 +243,15 @@ app.post(
 			}
 		}
 
-		let model
-		let providerOptions = {}
-		if (provider.name === 'openai') {
-			if (!token) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
+		const { model, error, providerOptions } = getModel({
+			limit,
+			provider,
+			searchGrounding,
+			token,
+		})
 
-			if (limit.plan === 'free') {
-				return c.text(
-					'You need to have basic or higher plan to use this model',
-					{
-						status: 400,
-					},
-				)
-			}
-
-			if (limit.standardLimit + limit.standardCredit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-
-			model = openai(provider.model)
-		} else if (provider.name === 'google') {
-			if (limit.standardLimit + limit.standardCredit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-			model = google(provider.model, {
-				useSearchGrounding: searchGrounding,
-			})
-		} else if (provider.name === 'groq') {
-			if (!token) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.plan === 'free') {
-				return c.text(
-					'You need to have basic or higher plan to use this model',
-					{
-						status: 400,
-					},
-				)
-			}
-
-			if (limit.standardLimit + limit.standardCredit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-
-			if (provider.model === 'deepseek-r1-distill-llama-70b') {
-				model = wrapLanguageModel({
-					model: groq(provider.model),
-					middleware: extractReasoningMiddleware({
-						tagName: 'think',
-					}),
-				})
-			} else {
-				model = groq(provider.model)
-			}
-		} else if (provider.name === 'anthropic') {
-			if (!token) {
-				return c.text('You have to be logged in to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.plan !== 'pro') {
-				return c.text('You need to have pro plan to use this model', {
-					status: 400,
-				})
-			}
-
-			if (limit.premiumCredit + limit.premiumLimit <= 0) {
-				return c.text('You have reached the limit', {
-					status: 400,
-				})
-			}
-			model = anthropic(provider.model)
-			if (provider.model === 'claude-3-7-sonnet-20250219') {
-				providerOptions = {
-					anthropic: {
-						thinking: { type: 'enabled', budgetTokens: 12000 },
-					},
-				}
-			}
-		} else {
-			return c.text('Invalid Model', { status: 400 })
+		if (error !== null) {
+			return c.text(error, 400)
 		}
 
 		return stream(c, (stream) =>
