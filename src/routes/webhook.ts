@@ -4,6 +4,7 @@ import { Webhooks } from '@polar-sh/hono'
 import { db } from '$lib/db'
 import { user } from '$lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { syncUserRatelimitWithDB } from '$lib/ratelimit'
 
 const app = new Hono()
 
@@ -31,6 +32,15 @@ app.post(
 						standardChatLimit: 0,
 					})
 					.where(eq(user.polarCustomerId, customerId))
+
+				const customer_user = await db.query.user.findFirst({
+					where: (user, { eq }) =>
+						eq(user.polarCustomerId, customerId),
+				})
+
+				if (!customer_user) return
+
+				await syncUserRatelimitWithDB(customer_user.id)
 			}
 		},
 		onOrderCreated: async (payload) => {
@@ -74,6 +84,8 @@ app.post(
 									: 100,
 						})
 						.where(eq(user.polarCustomerId, customerId))
+
+					await syncUserRatelimitWithDB(customer_user.id)
 				}
 			} else if (payload.data.billingReason === 'purchase') {
 				// const priceId = payload.data.productPriceId

@@ -18,6 +18,7 @@ import { google } from '$lib/auth/provider'
 import { db } from '$lib/db'
 import { user } from '$lib/db/schema'
 import { redis } from '$lib/redis'
+import { Limit } from '$lib/ratelimit'
 
 const app = new Hono()
 
@@ -29,22 +30,15 @@ app.get('/me', async (c) => {
 	}
 
 	if (token.startsWith('free:')) {
-		let limit = await redis.get<{
-			plan: 'free' | 'basic' | 'pro' | 'owner'
-			standardLimit: number
-			premiumLimit: number
-			standardCredit: number
-			premiumCredit: number
-			searchLimit: number
-			searchCredit: number
-		}>(token + '-limit')
+		let limit = await redis.get<Limit>(token + '-limit')
 		if (!limit) return c.json({ user: null })
 
 		return c.json({
 			user: {
 				email: '',
 				name: '',
-				plan: 'free',
+				plan: 'trial',
+				freeChatLimit: limit.freeLimit,
 				standardChatLimit: limit.standardLimit,
 				premiumChatLimit: limit.premiumLimit,
 				standardChatCredit: limit.standardCredit,
@@ -80,10 +74,11 @@ app.get('/me', async (c) => {
 	if (currentUser) {
 		await Promise.all(
 			currentUser.sessions.map(async (session) => {
-				await redis.set(
+				await redis.set<Limit>(
 					session.id + '-limit',
 					{
 						plan: currentUser.plan,
+						freeLimit: 0,
 						standardLimit: currentUser.standardChatLimit,
 						premiumLimit: currentUser.premiumChatLimit,
 						standardCredit: currentUser.standardChatCredit,
@@ -103,6 +98,7 @@ app.get('/me', async (c) => {
 					email: user.email,
 					name: user.username,
 					plan: user.plan,
+					freeChatLimit: 0,
 					standardChatLimit: user.standardChatLimit,
 					premiumChatLimit: user.premiumChatLimit,
 					standardChatCredit: user.standardChatCredit,
@@ -237,7 +233,7 @@ app.get('/login/google/callback', async (c) => {
 				premiumChatLimit: 0,
 				premiumChatCredit: 0,
 				searchLimit: 0,
-				standardChatCredit: 100,
+				standardChatCredit: 50,
 				standardChatLimit: 0,
 				createdAt: Date.now(),
 			})

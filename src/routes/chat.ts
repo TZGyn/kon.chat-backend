@@ -41,6 +41,12 @@ import { encodeHexLowerCase } from '@oslojs/encoding'
 import { sha256 } from '@oslojs/crypto/sha2'
 import { redis } from '$lib/redis'
 import { getModel, modelSchema } from '$lib/model'
+import { processMessages } from '$lib/message'
+import {
+	checkRatelimit,
+	Limit,
+	updateUserRatelimit,
+} from '$lib/ratelimit'
 
 const app = new Hono()
 
@@ -130,103 +136,30 @@ app.post(
 		const { messages, provider, search, searchGrounding } =
 			c.req.valid('json')
 
-		let token = getCookie(c, 'session') ?? null
-		if (!token) {
-			token = `free:${generateId()}`
-			setSessionTokenCookie(
-				c,
-				token,
-				Date.now() + 1000 * 60 * 60 * 24 * 1,
-			)
-			await redis.set(
-				token + '-limit',
-				{
-					plan: 'free',
-					standardLimit: 10,
-					premiumLimit: 0,
-					standardCredit: 0,
-					premiumCredit: 0,
-					searchLimit: 0,
-					searchCredit: 0,
-				},
-				{ ex: 60 * 60 * 24 },
-			)
-		}
+		const {
+			error: ratelimitError,
+			limit,
+			token,
+		} = await checkRatelimit({
+			c,
+			search,
+		})
 
-		let limit = await redis.get<{
-			plan: 'free' | 'basic' | 'pro' | 'owner'
-			standardLimit: number
-			premiumLimit: number
-			standardCredit: number
-			premiumCredit: number
-			searchLimit: number
-			searchCredit: number
-		}>(
-			(token.startsWith('free:')
-				? token
-				: encodeHexLowerCase(
-						sha256(new TextEncoder().encode(token)),
-				  )) + '-limit',
-		)
-
-		if (!limit) {
-			if (token.startsWith('free:')) {
-				return c.text('You have been rate limited', { status: 400 })
-			} else {
-				const { session, user } = await validateSessionToken(token)
-				if (!user) return c.text('Invalid User', { status: 400 })
-
-				if (session !== null) {
-					setSessionTokenCookie(c, token, session.expiresAt)
-				} else {
-					deleteSessionTokenCookie(c)
-				}
-
-				limit = {
-					plan: user.plan,
-					standardCredit: user.standardChatCredit,
-					premiumCredit: user.premiumChatCredit,
-					premiumLimit: user.premiumChatLimit,
-					standardLimit: user.standardChatLimit,
-					searchCredit: user.searchCredit,
-					searchLimit: user.searchLimit,
-				}
-			}
-		}
-
-		if (search && limit.searchCredit + limit.searchLimit <= 0) {
-			return c.text('You have reached the limit for web search', {
-				status: 400,
-			})
+		if (ratelimitError !== undefined) {
+			return c.text(ratelimitError, { status: 400 })
 		}
 
 		const chatId = c.req.param('chat_id')
 
-		let coreMessages = convertToCoreMessages(messages)
-		const userMessage = getMostRecentUserMessage(coreMessages)
-		const userMessageDate = Date.now()
+		const {
+			coreMessages,
+			error: processMessageError,
+			userMessage,
+			userMessageDate,
+		} = processMessages({ provider, messages })
 
-		if (provider.name === 'groq') {
-			coreMessages = coreMessages.map((message) => {
-				if (message.role === 'user') {
-					if (Array.isArray(message.content)) {
-						return {
-							...message,
-							content: message.content.filter((content) => {
-								if (content.type === 'text') return true
-								return false
-							}),
-						}
-					} else {
-						return message
-					}
-				}
-				return message
-			})
-		}
-
-		if (!userMessage) {
-			return c.text('No User Message', { status: 400 })
+		if (processMessageError !== undefined) {
+			return c.text(processMessageError, { status: 400 })
 		}
 
 		if (limit.plan === 'free') {
@@ -490,11 +423,11 @@ app.post(
 								providerMetadata,
 							}) => {
 								if (token.startsWith('free:')) {
-									await redis.set(
+									await redis.set<Limit>(
 										token + '-limit',
 										{
 											...limit,
-											standardLimit: limit.standardLimit - 1,
+											freeLimit: limit.freeLimit - 1,
 										},
 										{ ex: 60 * 60 * 24 },
 									)
@@ -503,20 +436,6 @@ app.post(
 
 								const { session, user: loggedInUser } =
 									await validateSessionToken(token)
-
-								const standardModels = [
-									'gpt-4o',
-									'gpt-4o-mini',
-									'o3-mini',
-									'gemini-2.0-flash-001',
-									'deepseek-r1-distill-llama-70b',
-									'llama-3.3-70b-versatile',
-								]
-
-								const premiumModels = [
-									'claude-3-5-sonnet-latest',
-									'claude-3-7-sonnet-20250219',
-								]
 
 								if (!loggedInUser) return
 
@@ -585,85 +504,11 @@ app.post(
 									),
 								)
 
-								const minusSearchLimit =
-									loggedInUser.searchLimit > 0 && search
-								const minusSearchCredit =
-									!minusSearchLimit &&
-									loggedInUser.searchCredit > 0 &&
-									search
-
-								const minusStandardLimit =
-									loggedInUser.standardChatLimit > 0 &&
-									standardModels.includes(provider.model)
-								const minusStandardCredit =
-									!minusStandardLimit &&
-									loggedInUser.standardChatCredit > 0 &&
-									standardModels.includes(provider.model)
-
-								const minusPremiumLimit =
-									loggedInUser.premiumChatLimit > 0 &&
-									premiumModels.includes(provider.model)
-								const minusPremiumCredit =
-									!minusPremiumLimit &&
-									loggedInUser.premiumChatCredit > 0 &&
-									premiumModels.includes(provider.model)
-
-								const [updatedUser] = await db
-									.update(user)
-									.set({
-										searchLimit: sql`${user.searchLimit} - ${
-											minusSearchLimit ? '1' : '0'
-										}`,
-										searchCredit: sql`${user.searchCredit} - ${
-											minusSearchCredit ? '1' : '0'
-										}`,
-										standardChatLimit: sql`${
-											user.standardChatLimit
-										} - ${minusStandardLimit ? '1' : '0'}`,
-										standardChatCredit: sql`${
-											user.standardChatCredit
-										} - ${minusStandardCredit ? '1' : '0'}`,
-										premiumChatLimit: sql`${
-											user.premiumChatLimit
-										} - ${minusPremiumLimit ? '1' : '0'}`,
-										premiumChatCredit: sql`${
-											user.premiumChatCredit
-										} - ${minusPremiumCredit ? '1' : '0'}`,
-									})
-									.where(eq(user.id, loggedInUser.id))
-									.returning()
-
-								const currentUser = await db.query.user.findFirst({
-									where: (user, { eq }) =>
-										eq(user.id, loggedInUser.id),
-									with: {
-										sessions: {
-											where: (session, { gte }) =>
-												gte(session.expiresAt, Date.now()),
-										},
-									},
+								await updateUserRatelimit({
+									provider,
+									search,
+									user: loggedInUser,
 								})
-
-								if (!currentUser) return
-
-								await Promise.all(
-									currentUser.sessions.map(async (session) => {
-										await redis.set(
-											session.id + '-limit',
-											{
-												plan: updatedUser.plan,
-												standardLimit: updatedUser.standardChatLimit,
-												premiumLimit: updatedUser.premiumChatLimit,
-												standardCredit:
-													updatedUser.standardChatCredit,
-												premiumCredit: updatedUser.premiumChatCredit,
-												searchLimit: updatedUser.searchLimit,
-												searchCredit: updatedUser.searchCredit,
-											},
-											{ ex: 60 * 60 * 24 },
-										)
-									}),
-								)
 							},
 						})
 

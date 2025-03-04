@@ -5,6 +5,7 @@ import {
 	LanguageModelV1,
 	wrapLanguageModel,
 } from 'ai'
+import { Limit } from '$lib/ratelimit'
 
 export const modelSchema = z
 	.union([
@@ -37,19 +38,24 @@ export const modelSchema = z
 	])
 	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
 
+export type Provider = z.infer<typeof modelSchema>
+
+export const freeModels = ['gemini-2.0-flash-001']
+
 export const standardModels = [
 	'gpt-4o',
 	'gpt-4o-mini',
 	'o3-mini',
-	'gemini-2.0-flash-001',
 	'deepseek-r1-distill-llama-70b',
 	'llama-3.3-70b-versatile',
-] as const
+	'grok-2-1212',
+	'grok-2-vision-1212',
+]
 
 export const premiumModels = [
 	'claude-3-5-sonnet-latest',
 	'claude-3-7-sonnet-20250219',
-] as const
+]
 
 export const getModel = ({
 	provider,
@@ -60,15 +66,7 @@ export const getModel = ({
 	provider: z.infer<typeof modelSchema>
 	searchGrounding: boolean
 	token: string
-	limit: {
-		plan: 'free' | 'basic' | 'pro' | 'owner'
-		standardLimit: number
-		premiumLimit: number
-		standardCredit: number
-		premiumCredit: number
-		searchLimit: number
-		searchCredit: number
-	}
+	limit: Limit
 }):
 	| {
 			model: LanguageModelV1
@@ -106,7 +104,7 @@ export const getModel = ({
 
 		model = openai(provider.model)
 	} else if (provider.name === 'google') {
-		if (limit.standardLimit + limit.standardCredit <= 0) {
+		if (limit.plan === 'trial' && limit.freeLimit <= 0) {
 			return {
 				error: 'You have reached the limit',
 				model: null,
