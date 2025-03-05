@@ -1,35 +1,13 @@
 import { zValidator } from '@hono/zod-validator'
-import {
-	convertToCoreMessages,
-	createDataStream,
-	extractReasoningMiddleware,
-	generateId,
-	smoothStream,
-	streamText,
-	tool,
-	wrapLanguageModel,
-} from 'ai'
+import { createDataStream, smoothStream, streamText, tool } from 'ai'
 import { Hono } from 'hono'
-import { getCookie } from 'hono/cookie'
 import { stream } from 'hono/streaming'
 import { z } from 'zod'
-import {
-	deleteSessionTokenCookie,
-	setSessionTokenCookie,
-	validateSessionToken,
-} from '$lib/auth/session'
-import { redis } from '$lib/redis'
-import { encodeHexLowerCase } from '@oslojs/encoding'
-import { sha256 } from '@oslojs/crypto/sha2'
-import { getMostRecentUserMessage } from '$lib/utils'
-import { anthropic, google, groq, openai } from '$lib/ai/model'
 import * as mathjs from 'mathjs'
-import { db } from '$lib/db'
-import { user } from '$lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
 import { getModel, modelSchema } from '$lib/model'
-import { checkRatelimit, updateUserRatelimit } from '$lib/ratelimit'
+import { checkRatelimit } from '$lib/ratelimit'
 import { processMessages } from '$lib/message'
+import { updateUserLimit } from '$lib/chat/utils'
 
 const app = new Hono()
 
@@ -417,15 +395,10 @@ app.post(
 								reasoning,
 								providerMetadata,
 							}) => {
-								const { session, user: loggedInUser } =
-									await validateSessionToken(token)
-
-								if (!loggedInUser) return
-
-								await updateUserRatelimit({
+								updateUserLimit({
 									provider,
 									search,
-									user: loggedInUser,
+									token,
 								})
 							},
 						})

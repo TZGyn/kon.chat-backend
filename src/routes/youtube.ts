@@ -3,34 +3,21 @@ import { db } from '$lib/db'
 import {
 	convertToCoreMessages,
 	createDataStream,
-	extractReasoningMiddleware,
-	generateId,
 	smoothStream,
-	streamObject,
 	streamText,
-	wrapLanguageModel,
-	type JSONValue,
 } from 'ai'
-import { anthropic, google, groq, openai } from '$lib/ai/model'
+import { google } from '$lib/ai/model'
 import { Innertube } from 'youtubei.js'
 import { z } from 'zod'
-import { user, youtube } from '$lib/db/schema'
+import { youtube } from '$lib/db/schema'
 import { stream } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { getCookie } from 'hono/cookie'
-import { redis } from '$lib/redis'
-import { encodeHexLowerCase } from '@oslojs/encoding'
-import { sha256 } from '@oslojs/crypto/sha2'
-import {
-	deleteSessionTokenCookie,
-	setSessionTokenCookie,
-	validateSessionToken,
-} from '$lib/auth/session'
 import { getMostRecentUserMessage } from '$lib/utils'
 import { TranscriptSegment } from 'youtubei.js/dist/src/parser/nodes'
-import { eq, sql } from 'drizzle-orm'
 import { getModel, modelSchema } from '$lib/model'
-import { checkRatelimit, updateUserRatelimit } from '$lib/ratelimit'
+import { checkRatelimit } from '$lib/ratelimit'
+import { updateUserLimit } from '$lib/chat/utils'
 
 const app = new Hono()
 
@@ -360,15 +347,10 @@ app.post(
 								reasoning,
 								providerMetadata,
 							}) => {
-								const { session, user: loggedInUser } =
-									await validateSessionToken(token)
-
-								if (!loggedInUser) return
-
-								await updateUserRatelimit({
+								updateUserLimit({
 									provider,
 									search,
-									user: loggedInUser,
+									token,
 								})
 							},
 						})

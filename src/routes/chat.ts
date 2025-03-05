@@ -47,6 +47,7 @@ import {
 	Limit,
 	updateUserRatelimit,
 } from '$lib/ratelimit'
+import { updateUserChatAndLimit } from '$lib/chat/utils'
 
 const app = new Hono()
 
@@ -423,7 +424,7 @@ app.post(
 								providerMetadata,
 							}) => {
 								if (token.startsWith('free:')) {
-									await redis.set<Limit>(
+									redis.set<Limit>(
 										token + '-limit',
 										{
 											...limit,
@@ -434,80 +435,19 @@ app.post(
 									return
 								}
 
-								const { session, user: loggedInUser } =
-									await validateSessionToken(token)
-
-								if (!loggedInUser) return
-
-								const existingChat = await db.query.chat.findFirst({
-									where: (chat, { eq, and }) =>
-										and(
-											eq(chat.id, chatId),
-											eq(chat.userId, loggedInUser.id),
-										),
-								})
-
-								if (!existingChat) {
-									const title = await generateTitleFromUserMessage({
-										message: userMessage,
-									})
-
-									await db.insert(chat).values({
-										id: chatId,
-										title: title,
-										userId: loggedInUser.id,
-										createdAt: Date.now(),
-									})
-								}
-
-								await db.insert(message).values({
-									...userMessage,
-									id: generateId(),
-									chatId: chatId,
-									promptTokens: 0,
-									completionTokens: 0,
-									totalTokens: 0,
-									createdAt: userMessageDate,
-								})
-
-								const responseMessagesWithoutIncompleteToolCalls =
-									sanitizeResponseMessages({
-										messages: response.messages,
-										reasoning,
-									})
-
-								const now = Date.now()
-
-								await db.insert(message).values(
-									responseMessagesWithoutIncompleteToolCalls.map(
-										(message, index) => {
-											const messageId = generateId()
-											const date = now + index
-
-											return {
-												id: messageId,
-												chatId: chatId,
-												role: message.role,
-												content: message.content,
-												model: provider.model,
-												provider: provider.name,
-												providerMetadata:
-													message.role === 'assistant'
-														? providerMetadata
-														: undefined,
-												braveData: brave,
-												jinaData: jina,
-												...usage,
-												createdAt: date,
-											}
-										},
-									),
-								)
-
-								await updateUserRatelimit({
+								updateUserChatAndLimit({
+									brave,
+									chatId,
+									jina,
+									messages: response.messages,
 									provider,
+									providerMetadata,
+									reasoning,
 									search,
-									user: loggedInUser,
+									token,
+									usage,
+									userMessage,
+									userMessageDate,
 								})
 							},
 						})
