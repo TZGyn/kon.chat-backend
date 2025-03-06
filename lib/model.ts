@@ -103,6 +103,11 @@ export const getModel = ({
 		}
 
 		model = openai(provider.model)
+		if (provider.model === 'o3-mini') {
+			providerOptions = {
+				openai: { reasoningEffort: 'high' },
+			}
+		}
 	} else if (provider.name === 'google') {
 		if (limit.plan === 'trial' && limit.freeLimit <= 0) {
 			return {

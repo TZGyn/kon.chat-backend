@@ -386,6 +386,15 @@ app.post(
 								\mathcal{L}\{f\}(s) = \int_0^{\infty} {f(t)e^{-st}dt}
 								$$
 
+								DONT USE $$ UNLESS YOU NEED TO GENERATE MATH FORMULAS
+
+								WRAP CODE AROUND \`IF INLINE\` 
+								WRAP CODE AROUND 
+								\`\`\` 
+								IF BLOCK
+								\`\`\` 
+
+
 								${searchMessage}
 							`,
 							providerOptions: providerOptions,
