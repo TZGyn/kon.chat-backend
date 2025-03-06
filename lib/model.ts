@@ -22,6 +22,7 @@ export const modelSchema = z
 			model: z.enum([
 				'deepseek-r1-distill-llama-70b',
 				'llama-3.3-70b-versatile',
+				'qwen-qwq-32b',
 			]),
 		}),
 		z.object({
@@ -145,7 +146,7 @@ export const getModel = ({
 			}
 		}
 
-		if (provider.model === 'deepseek-r1-distill-llama-70b') {
+		if (provider.model !== 'llama-3.3-70b-versatile') {
 			model = wrapLanguageModel({
 				model: groq(provider.model),
 				middleware: extractReasoningMiddleware({
