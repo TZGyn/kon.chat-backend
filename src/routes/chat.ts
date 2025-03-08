@@ -163,7 +163,7 @@ app.post(
 			return c.text(processMessageError, { status: 400 })
 		}
 
-		if (limit.plan === 'free') {
+		if (limit.plan === 'free' || limit.plan === 'trial') {
 			if (Array.isArray(userMessage.content)) {
 				if (
 					userMessage.content.some((content) => {

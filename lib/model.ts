@@ -86,7 +86,7 @@ export const getModel = ({
 			}
 		}
 
-		if (limit.plan === 'free') {
+		if (limit.plan === 'free' || limit.plan === 'trial') {
 			return {
 				error:
 					'You need to have basic or higher plan to use this model',
@@ -129,7 +129,7 @@ export const getModel = ({
 			}
 		}
 
-		if (limit.plan === 'free') {
+		if (limit.plan === 'free' || limit.plan === 'trial') {
 			return {
 				error:
 					'You need to have basic or higher plan to use this model',
@@ -197,7 +197,7 @@ export const getModel = ({
 			}
 		}
 
-		if (limit.plan === 'free') {
+		if (limit.plan === 'free' || limit.plan === 'trial') {
 			return {
 				error:
 					'You need to have basic or higher plan to use this model',
