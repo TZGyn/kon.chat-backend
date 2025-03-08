@@ -14,11 +14,12 @@ import {
 	generateState,
 	OAuth2Tokens,
 } from 'arctic'
-import { google } from '$lib/auth/provider'
+import { github, google } from '$lib/auth/provider'
 import { db } from '$lib/db'
 import { user } from '$lib/db/schema'
 import { redis } from '$lib/redis'
 import { Limit } from '$lib/ratelimit'
+import { eq } from 'drizzle-orm'
 
 const app = new Hono()
 
@@ -207,13 +208,19 @@ app.get('/login/google/callback', async (c) => {
 	const email = claims.email
 
 	const existingUser = await db.query.user.findFirst({
-		where: (user, { eq }) => eq(user.googleId, googleUserId),
+		where: (user, { eq }) => eq(user.email, email),
 	})
 
 	const redirectUrl =
 		(JSON.parse(decodeURI(state)).redirect as string | null) || '/'
 
 	if (existingUser) {
+		if (existingUser.googleId === null) {
+			await db
+				.update(user)
+				.set({ googleId: googleUserId })
+				.where(eq(user.id, existingUser.id))
+		}
 		const sessionToken = generateSessionToken()
 		const session = await createSession(sessionToken, existingUser.id)
 		setSessionTokenCookie(c, sessionToken, session.expiresAt)
@@ -226,6 +233,114 @@ app.get('/login/google/callback', async (c) => {
 			.values({
 				id: generateSessionToken(),
 				googleId: googleUserId,
+				username: username,
+				email: email,
+				plan: 'free',
+				searchCredit: 0,
+				premiumChatLimit: 0,
+				premiumChatCredit: 0,
+				searchLimit: 0,
+				standardChatCredit: 50,
+				standardChatLimit: 0,
+				createdAt: Date.now(),
+			})
+			.returning()
+	)[0]
+
+	const sessionToken = generateSessionToken()
+	const session = await createSession(sessionToken, createdUser.id)
+	setSessionTokenCookie(c, sessionToken, session.expiresAt)
+
+	return c.redirect(redirectUrl, 302)
+})
+
+app.get('/login/github', (c) => {
+	const redirect = c.req.query('redirect')
+
+	const state = encodeURI(
+		JSON.stringify({ key: generateState(), redirect: redirect }),
+	)
+
+	const url = github.createAuthorizationURL(state, ['user:email'])
+
+	setCookie(c, 'github_oauth_state', state, {
+		path: '/',
+		httpOnly: true,
+		maxAge: 60 * 10, // 10 minutes
+		sameSite: 'lax',
+	})
+
+	return c.redirect(url.toString(), 302)
+})
+
+app.get('/login/github/callback', async (c) => {
+	const code = c.req.query('code')
+	const state = c.req.query('state')
+	const storedState = getCookie(c, 'github_oauth_state') ?? null
+	if (
+		code === undefined ||
+		state === undefined ||
+		storedState === null
+	) {
+		return new Response(null, {
+			status: 400,
+		})
+	}
+	if (state !== storedState) {
+		return new Response(null, {
+			status: 400,
+		})
+	}
+
+	let tokens: OAuth2Tokens
+	try {
+		tokens = await github.validateAuthorizationCode(code)
+	} catch (e) {
+		// Invalid code or client credentials
+		return new Response(null, {
+			status: 400,
+		})
+	}
+	const githubUserResponse = await fetch(
+		'https://api.github.com/user',
+		{
+			headers: {
+				Authorization: `Bearer ${tokens.accessToken()}`,
+			},
+		},
+	)
+	const githubUser = await githubUserResponse.json()
+	console.log(githubUser)
+	const githubUserId = githubUser.id
+	const username = githubUser.login
+	const email = githubUser.email
+
+	const existingUser = await db.query.user.findFirst({
+		where: (user, { eq }) => eq(user.email, email),
+	})
+
+	const redirectUrl =
+		(JSON.parse(decodeURI(state)).redirect as string | null) || '/'
+
+	if (existingUser) {
+		if (existingUser.githubId === null) {
+			await db
+				.update(user)
+				.set({ githubId: githubUserId })
+				.where(eq(user.id, existingUser.id))
+		}
+		const sessionToken = generateSessionToken()
+		const session = await createSession(sessionToken, existingUser.id)
+		setSessionTokenCookie(c, sessionToken, session.expiresAt)
+		return c.redirect(redirectUrl, 302)
+	}
+
+	const createdUser = (
+		await db
+			.insert(user)
+			.values({
+				id: generateSessionToken(),
+				githubId: githubUserId,
 				username: username,
 				email: email,
 				plan: 'free',

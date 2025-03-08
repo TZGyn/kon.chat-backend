@@ -10,7 +10,8 @@ import { relations } from 'drizzle-orm'
 
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
-	googleId: varchar('google_id', { length: 255 }).notNull(),
+	googleId: varchar('google_id', { length: 255 }),
+	githubId: varchar('github_id', { length: 255 }),
 	username: varchar('username', { length: 255 }).notNull(),
 	email: varchar('email', { length: 255 }).notNull(),
 	standardChatLimit: bigint('standard_chat_limit', { mode: 'number' })
