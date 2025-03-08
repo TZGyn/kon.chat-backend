@@ -36,5 +36,24 @@ export const processMessages = ({
 			return message
 		})
 	}
+
+	if (provider.name !== 'anthropic') {
+		coreMessages = coreMessages.map((message) => {
+			if (message.role === 'user') {
+				if (Array.isArray(message.content)) {
+					return {
+						...message,
+						content: message.content.filter((content) => {
+							if (content.type === 'file') return false
+							return true
+						}),
+					}
+				} else {
+					return message
+				}
+			}
+			return message
+		})
+	}
 	return { coreMessages, userMessage, userMessageDate }
 }

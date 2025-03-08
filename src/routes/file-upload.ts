@@ -30,9 +30,16 @@ app.post(
 				})
 				// Update the file type based on the kind of files you want to accept
 				.refine(
-					(file) => ['image/jpeg', 'image/png'].includes(file.type),
+					(file) =>
+						[
+							'image/jpeg',
+							'image/png',
+							'application/pdf',
+							// 'text/csv',
+							// 'text/plain',
+						].includes(file.type),
 					{
-						message: 'File type should be JPEG or PNG',
+						message: 'File type not supported',
 					},
 				),
 		}),
