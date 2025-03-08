@@ -310,7 +310,6 @@ app.get('/login/github/callback', async (c) => {
 		},
 	)
 	const githubUser = await githubUserResponse.json()
-	console.log(githubUser)
 	const githubUserId = githubUser.id
 	const username = githubUser.login
 	const email = githubUser.email
