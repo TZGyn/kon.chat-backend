@@ -39,6 +39,7 @@ app.get('/me', async (c) => {
 				email: '',
 				name: '',
 				plan: 'trial',
+				avatar: '',
 				freeChatLimit: limit.freeLimit,
 				standardChatLimit: limit.standardLimit,
 				premiumChatLimit: limit.premiumLimit,
@@ -99,6 +100,7 @@ app.get('/me', async (c) => {
 					email: user.email,
 					name: user.username,
 					plan: user.plan,
+					avatar: user.avatar,
 					freeChatLimit: 0,
 					standardChatLimit: user.standardChatLimit,
 					premiumChatLimit: user.premiumChatLimit,
@@ -206,6 +208,8 @@ app.get('/login/google/callback', async (c) => {
 	const username = claims.name
 	// @ts-ignore
 	const email = claims.email
+	// @ts-ignore
+	const avatar = claims.picture
 
 	const existingUser = await db.query.user.findFirst({
 		where: (user, { eq }) => eq(user.email, email),
@@ -218,7 +222,18 @@ app.get('/login/google/callback', async (c) => {
 		if (existingUser.googleId === null) {
 			await db
 				.update(user)
-				.set({ googleId: googleUserId })
+				.set({
+					googleId: googleUserId,
+					avatar: existingUser.avatar ? undefined : avatar,
+				})
+				.where(eq(user.id, existingUser.id))
+		}
+		if (!existingUser.avatar) {
+			await db
+				.update(user)
+				.set({
+					avatar: avatar,
+				})
 				.where(eq(user.id, existingUser.id))
 		}
 		const sessionToken = generateSessionToken()
@@ -313,6 +328,7 @@ app.get('/login/github/callback', async (c) => {
 	const githubUserId = githubUser.id
 	const username = githubUser.login
 	const email = githubUser.email
+	const avatar = githubUser.avatar_url
 
 	const existingUser = await db.query.user.findFirst({
 		where: (user, { eq }) => eq(user.email, email),
@@ -325,7 +341,18 @@ app.get('/login/github/callback', async (c) => {
 		if (existingUser.githubId === null) {
 			await db
 				.update(user)
-				.set({ githubId: githubUserId })
+				.set({
+					githubId: githubUserId,
+					avatar: existingUser.avatar ? undefined : avatar,
+				})
+				.where(eq(user.id, existingUser.id))
+		}
+		if (!existingUser.avatar) {
+			await db
+				.update(user)
+				.set({
+					avatar: avatar,
+				})
 				.where(eq(user.id, existingUser.id))
 		}
 		const sessionToken = generateSessionToken()
