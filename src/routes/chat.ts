@@ -508,6 +508,7 @@ app.post(
 							usage,
 							userMessage,
 							userMessageDate,
+							mode,
 						})
 					},
 				})

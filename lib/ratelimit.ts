@@ -103,15 +103,20 @@ export const updateUserRatelimit = async ({
 	user: loggedInUser,
 	search,
 	provider,
+	mode,
 }: {
 	user: User
 	search: boolean
 	provider: Provider
+	mode: 'x_search' | 'chat'
 }) => {
 	if (provider.model === 'gemini-2.0-flash-001') return
-	const minusSearchLimit = loggedInUser.searchLimit > 0 && search
+	const minusSearchLimit =
+		loggedInUser.searchLimit > 0 && (search || mode !== 'chat')
 	const minusSearchCredit =
-		!minusSearchLimit && loggedInUser.searchCredit > 0 && search
+		!minusSearchLimit &&
+		loggedInUser.searchCredit > 0 &&
+		(search || mode !== 'chat')
 
 	const minusStandardLimit =
 		loggedInUser.standardChatLimit > 0 &&

@@ -49,6 +49,7 @@ app.post(
 		} = await checkRatelimit({
 			c,
 			search,
+			mode: 'chat',
 		})
 
 		if (ratelimitError !== undefined) {
