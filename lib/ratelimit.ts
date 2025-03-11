@@ -29,18 +29,17 @@ export type Limit = {
 export const checkRatelimit = async ({
 	c,
 	search,
+	mode,
 }: {
 	c: Context
 	search: boolean
+	mode: 'x_search' | 'chat'
 }) => {
 	let token = getCookie(c, 'session') ?? null
+	let cookie: 'none' | 'set' | 'delete' = 'none'
 	if (!token) {
 		token = `free:${generateId()}`
-		setSessionTokenCookie(
-			c,
-			token,
-			Date.now() + 1000 * 60 * 60 * 24 * 1,
-		)
+		cookie = 'set'
 		await redis.set(
 			token + '-limit',
 			{
@@ -72,9 +71,9 @@ export const checkRatelimit = async ({
 			if (!user) return { error: 'Invalid User' }
 
 			if (session !== null) {
-				setSessionTokenCookie(c, token, session.expiresAt)
+				cookie = 'set'
 			} else {
-				deleteSessionTokenCookie(c)
+				cookie = 'delete'
 			}
 
 			limit = {
@@ -90,11 +89,14 @@ export const checkRatelimit = async ({
 		}
 	}
 
-	if (search && limit.searchCredit + limit.searchLimit <= 0) {
-		return { error: 'You have reached the limit for web search' }
+	if (
+		(search || mode !== 'chat') &&
+		limit.searchCredit + limit.searchLimit <= 0
+	) {
+		return { error: 'You have reached the limit for search' }
 	}
 
-	return { limit, token }
+	return { limit, token, cookie }
 }
 
 export const updateUserRatelimit = async ({
