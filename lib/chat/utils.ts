@@ -42,7 +42,7 @@ export const updateUserChatAndLimit = async ({
 	jina: any
 	usage: LanguageModelUsage
 	search: boolean
-	mode: 'x_search' | 'chat'
+	mode: 'x_search' | 'chat' | 'web_search' | string
 }) => {
 	const { session, user: loggedInUser } = await validateSessionToken(
 		token,

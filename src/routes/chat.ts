@@ -52,7 +52,7 @@ import {
 import { updateUserChatAndLimit } from '$lib/chat/utils'
 import { exa } from '$lib/ai/exa'
 import { serialize } from 'hono/utils/cookie'
-import { activeTools } from '$lib/ai/tools'
+import { activeTools, tools } from '$lib/ai/tools'
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -91,6 +91,7 @@ app.get('/', async (c) => {
 })
 
 app.get('/:chat_id', async (c) => {
+	await sleep(2000)
 	const token = getCookie(c, 'session') ?? null
 	const chatId = c.req.param('chat_id')
 
@@ -140,7 +141,11 @@ app.post(
 			search: z.boolean().default(false),
 			searchGrounding: z.boolean().default(false),
 			mode: z
-				.union([z.literal('x_search'), z.literal('chat')])
+				.union([
+					z.literal('x_search'),
+					z.literal('chat'),
+					z.literal('web_search'),
+				])
 				.default('chat'),
 		}),
 	),
@@ -447,8 +452,9 @@ app.post(
 					providerOptions: providerOptions,
 					onChunk: ({ chunk }) => {},
 					maxSteps: 5,
+					experimental_activeTools: [...activeTools(mode)],
 					tools: {
-						...activeTools(mode),
+						...tools(dataStream),
 					},
 					onStepFinish: (data) => {
 						const metadata = data.providerMetadata?.google as
@@ -494,6 +500,8 @@ app.post(
 							)
 							return
 						}
+
+						console.log(response.messages)
 
 						updateUserChatAndLimit({
 							brave,
