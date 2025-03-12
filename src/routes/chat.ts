@@ -400,6 +400,20 @@ app.post(
 					`
 				}
 
+				const additionalSystemPrompt = {
+					chat: ``,
+					x_search: `
+						You have been given an ability to search X(formerly Twitter)'s posts
+						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						DO NOT ASK THE USER FOR CONFIRMATION!
+					`,
+					web_search: `
+						You have been given a web search ability, 
+						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						DO NOT ASK THE USER FOR CONFIRMATION!
+					`,
+				}
+
 				const jina = jinaData
 
 				const brave = braveSearchData
@@ -409,14 +423,13 @@ app.post(
 					messages: coreMessages,
 					system: `
 						You are a chat assistant
-						${
-							!searchGrounding &&
-							`
-								Dont call any tools as there are no tools
-								Only use the information provided to you
-								If theres is a need for search, the search result will be provided to you
-							`
-						}
+
+						Today's Date: ${new Date().toLocaleDateString('en-US', {
+							year: 'numeric',
+							month: 'short',
+							day: '2-digit',
+							weekday: 'short',
+						})}
 
 						if a math equation is generated, wrap it around $$ for katex inline styling and $$ for block
 						example:
@@ -448,6 +461,7 @@ app.post(
 						- inform the user that is may be unavailable or they may have reached the limit
 
 						${searchMessage}
+						${additionalSystemPrompt[mode]}
 					`,
 					providerOptions: providerOptions,
 					onChunk: ({ chunk }) => {},
