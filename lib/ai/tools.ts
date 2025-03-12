@@ -179,12 +179,6 @@ export const tools = (dataStream: DataStreamWriter) => ({
 		}) => {
 			const includeImageDescriptions = true
 
-			console.log('Queries:', queries)
-			console.log('Max Results:', maxResults)
-			console.log('Topics:', topics)
-			console.log('Search Depths:', searchDepth)
-			console.log('Exclude Domains:', exclude_domains)
-
 			// Execute searches in parallel
 			const searchPromises = queries.map(async (query, index) => {
 				const data = await tavily.search(query, {

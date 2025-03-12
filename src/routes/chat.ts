@@ -501,8 +501,6 @@ app.post(
 							return
 						}
 
-						console.log(response.messages)
-
 						updateUserChatAndLimit({
 							brave,
 							chatId,
