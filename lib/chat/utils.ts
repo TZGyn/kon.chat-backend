@@ -24,10 +24,7 @@ export const updateUserChatAndLimit = async ({
 	reasoning,
 	provider,
 	providerMetadata,
-	brave,
-	jina,
 	usage,
-	search,
 	mode,
 }: {
 	token: string
@@ -38,10 +35,7 @@ export const updateUserChatAndLimit = async ({
 	reasoning: string | undefined
 	provider: Provider
 	providerMetadata: any | undefined
-	brave: any
-	jina: any
 	usage: LanguageModelUsage
-	search: boolean
 	mode: 'x_search' | 'chat' | 'web_search' | string
 }) => {
 	const { session, user: loggedInUser } = await validateSessionToken(
@@ -103,8 +97,6 @@ export const updateUserChatAndLimit = async ({
 						message.role === 'assistant'
 							? providerMetadata
 							: undefined,
-					braveData: brave,
-					jinaData: jina,
 					...usage,
 					createdAt: date,
 				}
@@ -114,7 +106,6 @@ export const updateUserChatAndLimit = async ({
 
 	await updateUserRatelimit({
 		provider,
-		search,
 		user: loggedInUser,
 		mode,
 	})
@@ -123,11 +114,9 @@ export const updateUserChatAndLimit = async ({
 export const updateUserLimit = async ({
 	token,
 	provider,
-	search,
 }: {
 	token: string
 	provider: Provider
-	search: boolean
 }) => {
 	const { session, user: loggedInUser } = await validateSessionToken(
 		token,
@@ -137,7 +126,6 @@ export const updateUserLimit = async ({
 
 	await updateUserRatelimit({
 		provider,
-		search,
 		user: loggedInUser,
 		mode: 'chat',
 	})

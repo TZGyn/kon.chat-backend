@@ -66,8 +66,6 @@ export const message = pgTable('message', {
 	id: text('id').primaryKey().notNull(),
 	chatId: text('chat_id').notNull(),
 	role: varchar('role').notNull(),
-	braveData: json('brave_data').notNull().default({}),
-	jinaData: json('jina_data').notNull().default([]),
 	content: json('content').notNull(),
 	model: varchar('model'),
 	provider: varchar('provider'),

@@ -28,11 +28,9 @@ export type Limit = {
 
 export const checkRatelimit = async ({
 	c,
-	search,
 	mode,
 }: {
 	c: Context
-	search: boolean
 	mode: 'x_search' | 'chat' | 'web_search'
 }) => {
 	let token = getCookie(c, 'session') ?? null
@@ -90,7 +88,7 @@ export const checkRatelimit = async ({
 	}
 
 	if (
-		(search || mode !== 'chat') &&
+		mode !== 'chat' &&
 		limit.searchCredit + limit.searchLimit <= 0
 	) {
 		return { error: 'You have reached the limit for search' }
@@ -101,22 +99,20 @@ export const checkRatelimit = async ({
 
 export const updateUserRatelimit = async ({
 	user: loggedInUser,
-	search,
 	provider,
 	mode,
 }: {
 	user: User
-	search: boolean
 	provider: Provider
 	mode: 'x_search' | 'chat' | 'web_search' | string
 }) => {
 	if (provider.model === 'gemini-2.0-flash-001') return
 	const minusSearchLimit =
-		loggedInUser.searchLimit > 0 && (search || mode !== 'chat')
+		loggedInUser.searchLimit > 0 && mode !== 'chat'
 	const minusSearchCredit =
 		!minusSearchLimit &&
 		loggedInUser.searchCredit > 0 &&
-		(search || mode !== 'chat')
+		mode !== 'chat'
 
 	const minusStandardLimit =
 		loggedInUser.standardChatLimit > 0 &&

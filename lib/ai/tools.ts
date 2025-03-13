@@ -65,221 +65,238 @@ const deduplicateByDomainAndUrl = <T extends { url: string }>(
 	})
 }
 
-export const tools = (dataStream: DataStreamWriter) => ({
-	x_search: tool({
-		description: 'Search X (formerly Twitter) posts.',
-		parameters: z.object({
-			query: z
-				.string()
-				.describe(
-					'The search query, if a username is provided put in the query with @username',
-				),
-			startDate: z
-				.string()
-				.optional()
-				.describe(
-					'The start date for the search in YYYY-MM-DD format',
-				),
-			endDate: z
-				.string()
-				.optional()
-				.describe('The end date for the search in YYYY-MM-DD format'),
-		}),
-		execute: async ({
-			query,
-			startDate,
-			endDate,
-		}: {
-			query: string
-			startDate?: string
-			endDate?: string
-		}) => {
-			try {
-				const result = await exa.searchAndContents(query, {
-					type: 'keyword',
-					numResults: 15,
-					text: true,
-					highlights: true,
-					includeDomains: ['twitter.com', 'x.com'],
-					startPublishedDate: startDate,
-					endPublishedDate: endDate,
-				})
-				// Extract tweet ID from URL
-				const extractTweetId = (url: string): string | null => {
-					const match = url.match(
-						/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/,
-					)
-					return match ? match[1] : null
-				}
-				// Process and filter results
-				const processedResults = result.results.reduce<
-					Array<XResult>
-				>((acc, post) => {
-					const tweetId = extractTweetId(post.url)
-					if (tweetId) {
-						acc.push({
-							...post,
-							tweetId,
-							title: post.title || '',
-						})
-					}
-					return acc
-				}, [])
-				return processedResults
-			} catch (error) {
-				console.error('X search error:', error)
-				throw error
-			}
-		},
-	}),
-	web_search: tool({
-		description:
-			'Search the web for information with multiple queries, max results and search depth.',
-		parameters: z.object({
-			queries: z.array(
-				z
+export const tools = (
+	dataStream: DataStreamWriter,
+	mode: 'chat' | 'x_search' | 'web_search',
+) => {
+	const toolList = {
+		x_search: tool({
+			description: 'Search X (formerly Twitter) posts.',
+			parameters: z.object({
+				query: z
 					.string()
-					.describe('Array of search queries to look up on the web.'),
-			),
-			maxResults: z.array(
-				z
-					.number()
 					.describe(
-						'Array of maximum number of results to return per query.',
+						'The search query, if a username is provided put in the query with @username',
 					),
-			),
-			topics: z.array(
-				z
-					.enum(['general', 'news'])
-					.describe('Array of topic types to search for.'),
-			),
-			searchDepth: z.array(
-				z
-					.enum(['basic', 'advanced'])
-					.describe('Array of search depths to use.'),
-			),
-			exclude_domains: z
-				.array(z.string())
-				.describe(
-					'A list of domains to exclude from all search results.',
-				),
+				startDate: z
+					.string()
+					.optional()
+					.describe(
+						'The start date for the search in YYYY-MM-DD format',
+					),
+				endDate: z
+					.string()
+					.optional()
+					.describe(
+						'The end date for the search in YYYY-MM-DD format',
+					),
+			}),
+			execute: async ({
+				query,
+				startDate,
+				endDate,
+			}: {
+				query: string
+				startDate?: string
+				endDate?: string
+			}) => {
+				try {
+					const result = await exa.searchAndContents(query, {
+						type: 'keyword',
+						numResults: 15,
+						text: true,
+						highlights: true,
+						includeDomains: ['twitter.com', 'x.com'],
+						startPublishedDate: startDate,
+						endPublishedDate: endDate,
+					})
+					// Extract tweet ID from URL
+					const extractTweetId = (url: string): string | null => {
+						const match = url.match(
+							/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/,
+						)
+						return match ? match[1] : null
+					}
+					// Process and filter results
+					const processedResults = result.results.reduce<
+						Array<XResult>
+					>((acc, post) => {
+						const tweetId = extractTweetId(post.url)
+						if (tweetId) {
+							acc.push({
+								...post,
+								tweetId,
+								title: post.title || '',
+							})
+						}
+						return acc
+					}, [])
+					return processedResults
+				} catch (error) {
+					console.error('X search error:', error)
+					throw error
+				}
+			},
 		}),
-		execute: async ({
-			queries,
-			maxResults,
-			topics,
-			searchDepth,
-			exclude_domains,
-		}: {
-			queries: string[]
-			maxResults: number[]
-			topics: ('general' | 'news')[]
-			searchDepth: ('basic' | 'advanced')[]
-			exclude_domains?: string[]
-		}) => {
-			const includeImageDescriptions = true
+		web_search: tool({
+			description:
+				'Search the web for information with multiple queries, max results and search depth.',
+			parameters: z.object({
+				queries: z.array(
+					z
+						.string()
+						.describe(
+							'Array of search queries to look up on the web.',
+						),
+				),
+				maxResults: z.array(
+					z
+						.number()
+						.describe(
+							'Array of maximum number of results to return per query.',
+						),
+				),
+				topics: z.array(
+					z
+						.enum(['general', 'news'])
+						.describe('Array of topic types to search for.'),
+				),
+				searchDepth: z.array(
+					z
+						.enum(['basic', 'advanced'])
+						.describe('Array of search depths to use.'),
+				),
+				exclude_domains: z
+					.array(z.string())
+					.describe(
+						'A list of domains to exclude from all search results.',
+					),
+			}),
+			execute: async ({
+				queries,
+				maxResults,
+				topics,
+				searchDepth,
+				exclude_domains,
+			}: {
+				queries: string[]
+				maxResults: number[]
+				topics: ('general' | 'news')[]
+				searchDepth: ('basic' | 'advanced')[]
+				exclude_domains?: string[]
+			}) => {
+				const includeImageDescriptions = true
 
-			// Execute searches in parallel
-			const searchPromises = queries.map(async (query, index) => {
-				const data = await tavily.search(query, {
-					topic: topics[index] || topics[0] || 'general',
-					days: topics[index] === 'news' ? 7 : undefined,
-					maxResults: maxResults[index] || maxResults[0] || 10,
-					searchDepth:
-						searchDepth[index] || searchDepth[0] || 'basic',
-					includeAnswer: true,
-					includeImages: true,
-					includeImageDescriptions: includeImageDescriptions,
-					excludeDomains: exclude_domains,
-				})
+				// Execute searches in parallel
+				const searchPromises = queries.map(async (query, index) => {
+					const data = await tavily.search(query, {
+						topic: topics[index] || topics[0] || 'general',
+						days: topics[index] === 'news' ? 7 : undefined,
+						maxResults: maxResults[index] || maxResults[0] || 10,
+						searchDepth:
+							searchDepth[index] || searchDepth[0] || 'basic',
+						includeAnswer: true,
+						includeImages: true,
+						includeImageDescriptions: includeImageDescriptions,
+						excludeDomains: exclude_domains,
+					})
 
-				// Add annotation for query completion
-				dataStream.writeMessageAnnotation({
-					type: 'query_completion',
-					data: {
+					// Add annotation for query completion
+					dataStream.writeMessageAnnotation({
+						type: 'query_completion',
+						data: {
+							query,
+							index,
+							total: queries.length,
+							status: 'completed',
+							resultsCount: data.results.length,
+							imagesCount: data.images.length,
+						},
+					})
+
+					return {
 						query,
-						index,
-						total: queries.length,
-						status: 'completed',
-						resultsCount: data.results.length,
-						imagesCount: data.images.length,
-					},
+						results: deduplicateByDomainAndUrl(data.results).map(
+							(obj: any) => ({
+								url: obj.url,
+								title: obj.title,
+								content: obj.content,
+								raw_content: obj.raw_content,
+								published_date:
+									topics[index] === 'news'
+										? obj.published_date
+										: undefined,
+							}),
+						),
+						images: includeImageDescriptions
+							? await Promise.all(
+									deduplicateByDomainAndUrl(data.images).map(
+										async ({
+											url,
+											description,
+										}: {
+											url: string
+											description?: string
+										}) => {
+											const sanitizedUrl = sanitizeUrl(url)
+											const isValid = await isValidImageUrl(
+												sanitizedUrl,
+											)
+											return isValid
+												? {
+														url: sanitizedUrl,
+														description: description ?? '',
+												  }
+												: null
+										},
+									),
+							  ).then((results) =>
+									results.filter(
+										(
+											image,
+										): image is {
+											url: string
+											description: string
+										} =>
+											image !== null &&
+											typeof image === 'object' &&
+											typeof image.description === 'string' &&
+											image.description !== '',
+									),
+							  )
+							: await Promise.all(
+									deduplicateByDomainAndUrl(data.images).map(
+										async ({ url }: { url: string }) => {
+											const sanitizedUrl = sanitizeUrl(url)
+											return (await isValidImageUrl(sanitizedUrl))
+												? sanitizedUrl
+												: null
+										},
+									),
+							  ).then(
+									(results) =>
+										results.filter((url) => url !== null) as string[],
+							  ),
+					}
 				})
+
+				const searchResults = await Promise.all(searchPromises)
 
 				return {
-					query,
-					results: deduplicateByDomainAndUrl(data.results).map(
-						(obj: any) => ({
-							url: obj.url,
-							title: obj.title,
-							content: obj.content,
-							raw_content: obj.raw_content,
-							published_date:
-								topics[index] === 'news'
-									? obj.published_date
-									: undefined,
-						}),
-					),
-					images: includeImageDescriptions
-						? await Promise.all(
-								deduplicateByDomainAndUrl(data.images).map(
-									async ({
-										url,
-										description,
-									}: {
-										url: string
-										description?: string
-									}) => {
-										const sanitizedUrl = sanitizeUrl(url)
-										const isValid = await isValidImageUrl(
-											sanitizedUrl,
-										)
-										return isValid
-											? {
-													url: sanitizedUrl,
-													description: description ?? '',
-											  }
-											: null
-									},
-								),
-						  ).then((results) =>
-								results.filter(
-									(
-										image,
-									): image is {
-										url: string
-										description: string
-									} =>
-										image !== null &&
-										typeof image === 'object' &&
-										typeof image.description === 'string' &&
-										image.description !== '',
-								),
-						  )
-						: await Promise.all(
-								deduplicateByDomainAndUrl(data.images).map(
-									async ({ url }: { url: string }) => {
-										const sanitizedUrl = sanitizeUrl(url)
-										return (await isValidImageUrl(sanitizedUrl))
-											? sanitizedUrl
-											: null
-									},
-								),
-						  ).then(
-								(results) =>
-									results.filter((url) => url !== null) as string[],
-						  ),
+					searches: searchResults,
 				}
-			})
+			},
+		}),
+	}
 
-			const searchResults = await Promise.all(searchPromises)
+	const toolMap = {
+		chat: {},
+		x_search: { x_search: toolList.x_search },
+		web_search: { x_search: toolList.web_search },
+	}
 
-			return {
-				searches: searchResults,
-			}
-		},
-	}),
-})
+	return toolMap[mode]
+}
 
 export const activeTools = (
 	mode: 'x_search' | 'chat' | 'web_search',

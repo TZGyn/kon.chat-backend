@@ -28,7 +28,6 @@ app.post(
 					data: z.any().array(),
 				})
 				.array(),
-			search: z.boolean().default(false),
 			searchGrounding: z.boolean().default(false),
 		}),
 	),
@@ -36,7 +35,6 @@ app.post(
 		const {
 			messages,
 			provider,
-			search,
 			searchGrounding,
 			spreadSheetData,
 			selectedSheetData,
@@ -48,7 +46,6 @@ app.post(
 			token,
 		} = await checkRatelimit({
 			c,
-			search,
 			mode: 'chat',
 		})
 
@@ -398,7 +395,6 @@ app.post(
 							}) => {
 								updateUserLimit({
 									provider,
-									search,
 									token,
 								})
 							},

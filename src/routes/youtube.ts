@@ -213,20 +213,14 @@ app.post(
 			messages: z.any(),
 			provider: modelSchema,
 			transcript: z.custom<TranscriptSegment>().array(),
-			search: z.boolean().default(false),
 			searchGrounding: z.boolean().default(false),
 		}),
 	),
 	async (c) => {
 		const youtube_id = c.req.param('youtube_id')
 
-		const {
-			provider,
-			search,
-			searchGrounding,
-			transcript,
-			messages,
-		} = c.req.valid('json')
+		const { provider, searchGrounding, transcript, messages } =
+			c.req.valid('json')
 
 		const {
 			error: ratelimitError,
@@ -234,7 +228,6 @@ app.post(
 			token,
 		} = await checkRatelimit({
 			c,
-			search,
 			mode: 'chat',
 		})
 
@@ -350,7 +343,6 @@ app.post(
 							}) => {
 								updateUserLimit({
 									provider,
-									search,
 									token,
 								})
 							},
