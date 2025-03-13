@@ -292,7 +292,7 @@ export const tools = (
 	const toolMap = {
 		chat: {},
 		x_search: { x_search: toolList.x_search },
-		web_search: { x_search: toolList.web_search },
+		web_search: { web_search: toolList.web_search },
 	}
 
 	return toolMap[mode]
