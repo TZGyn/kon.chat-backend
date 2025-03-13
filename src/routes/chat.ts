@@ -113,6 +113,7 @@ app.post(
 					z.literal('x_search'),
 					z.literal('chat'),
 					z.literal('web_search'),
+					z.literal('academic_search'),
 				])
 				.default('chat'),
 		}),
@@ -226,6 +227,11 @@ app.post(
 					`,
 					web_search: `
 						You have been given a web search ability, 
+						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						DO NOT ASK THE USER FOR CONFIRMATION!
+					`,
+					academic_search: `
+						You have been given an ability to search academic papers
 						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,

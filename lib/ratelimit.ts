@@ -31,7 +31,7 @@ export const checkRatelimit = async ({
 	mode,
 }: {
 	c: Context
-	mode: 'x_search' | 'chat' | 'web_search'
+	mode: 'x_search' | 'chat' | 'web_search' | 'academic_search'
 }) => {
 	let token = getCookie(c, 'session') ?? null
 	let cookie: 'none' | 'set' | 'delete' = 'none'
@@ -104,9 +104,8 @@ export const updateUserRatelimit = async ({
 }: {
 	user: User
 	provider: Provider
-	mode: 'x_search' | 'chat' | 'web_search' | string
+	mode: 'x_search' | 'chat' | 'web_search' | 'academic_search'
 }) => {
-	if (provider.model === 'gemini-2.0-flash-001') return
 	const minusSearchLimit =
 		loggedInUser.searchLimit > 0 && mode !== 'chat'
 	const minusSearchCredit =
