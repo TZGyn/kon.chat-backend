@@ -218,7 +218,7 @@ app.post(
 				})
 
 				const additionalSystemPrompt = {
-					chat: ``,
+					chat: `You are not given a web search ability, if user ask you to do so, let the user know there is ability is limit`,
 					x_search: `
 						You have been given an ability to search X(formerly Twitter)'s posts
 						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
