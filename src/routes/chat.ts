@@ -114,6 +114,7 @@ app.post(
 					z.literal('chat'),
 					z.literal('web_search'),
 					z.literal('academic_search'),
+					z.literal('web_reader'),
 				])
 				.default('chat'),
 		}),
@@ -232,6 +233,11 @@ app.post(
 					`,
 					academic_search: `
 						You have been given an ability to search academic papers
+						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						DO NOT ASK THE USER FOR CONFIRMATION!
+					`,
+					web_reader: `
+						You have been given an ability to fetch url as markdown 
 						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,

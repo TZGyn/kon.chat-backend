@@ -36,7 +36,12 @@ export const updateUserChatAndLimit = async ({
 	provider: Provider
 	providerMetadata: any | undefined
 	usage: LanguageModelUsage
-	mode: 'x_search' | 'chat' | 'web_search' | 'academic_search'
+	mode:
+		| 'x_search'
+		| 'chat'
+		| 'web_search'
+		| 'academic_search'
+		| 'web_reader'
 }) => {
 	const { session, user: loggedInUser } = await validateSessionToken(
 		token,

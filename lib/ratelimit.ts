@@ -31,7 +31,12 @@ export const checkRatelimit = async ({
 	mode,
 }: {
 	c: Context
-	mode: 'x_search' | 'chat' | 'web_search' | 'academic_search'
+	mode:
+		| 'x_search'
+		| 'chat'
+		| 'web_search'
+		| 'academic_search'
+		| 'web_reader'
 }) => {
 	let token = getCookie(c, 'session') ?? null
 	let cookie: 'none' | 'set' | 'delete' = 'none'
@@ -104,7 +109,12 @@ export const updateUserRatelimit = async ({
 }: {
 	user: User
 	provider: Provider
-	mode: 'x_search' | 'chat' | 'web_search' | 'academic_search'
+	mode:
+		| 'x_search'
+		| 'chat'
+		| 'web_search'
+		| 'academic_search'
+		| 'web_reader'
 }) => {
 	const minusSearchLimit =
 		loggedInUser.searchLimit > 0 && mode !== 'chat'

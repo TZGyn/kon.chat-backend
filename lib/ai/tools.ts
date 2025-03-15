@@ -2,6 +2,7 @@ import { DataStreamWriter, tool } from 'ai'
 import { z } from 'zod'
 import { exa } from './exa'
 import { tavily } from './tavily'
+import { jinaRead } from './jina'
 
 type XResult = {
 	id: string
@@ -67,7 +68,12 @@ const deduplicateByDomainAndUrl = <T extends { url: string }>(
 
 export const tools = (
 	dataStream: DataStreamWriter,
-	mode: 'chat' | 'x_search' | 'web_search' | 'academic_search',
+	mode:
+		| 'chat'
+		| 'x_search'
+		| 'web_search'
+		| 'academic_search'
+		| 'web_reader',
 ) => {
 	const toolList = {
 		x_search: tool({
@@ -345,6 +351,21 @@ export const tools = (
 				}
 			},
 		}),
+		web_reader: tool({
+			description: 'Get page content as markdown given an url.',
+			parameters: z.object({
+				url: z.string().describe('The url of the page'),
+			}),
+			execute: async ({ url }) => {
+				try {
+					const result = await jinaRead(url)
+					return { result }
+				} catch (error) {
+					console.error('Jina reader error:', error)
+					throw error
+				}
+			},
+		}),
 	}
 
 	const toolMap = {
@@ -352,18 +373,20 @@ export const tools = (
 		x_search: { x_search: toolList.x_search },
 		web_search: { web_search: toolList.web_search },
 		academic_search: { academic_search: toolList.academic_search },
+		web_reader: { web_reader: toolList.web_reader },
 	}
 
 	return toolMap[mode]
 }
 
 export const activeTools = (
-	mode: 'x_search' | 'chat' | 'web_search',
+	mode: 'x_search' | 'chat' | 'web_search' | 'web_reader',
 ) => {
 	const toolMap = {
 		x_search: ['x_search'],
 		chat: [],
 		web_search: ['web_search'],
+		web_reader: ['web_reader'],
 	} as const
 	return toolMap[mode]
 }
