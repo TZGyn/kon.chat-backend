@@ -36,6 +36,13 @@
       "when": 1741837891049,
       "tag": "0004_round_tombstone",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1742450883213,
+      "tag": "0005_wise_killmonger",
+      "breakpoints": true
     }
   ]
 }
