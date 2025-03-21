@@ -690,6 +690,10 @@ app.delete('/:pdf_id', async (c) => {
 	if (deletedPDFs.length > 0) {
 		const deletedPDF = deletedPDFs[0]
 
+		const s3file = s3Client.file(deletedPDF.url)
+
+		await s3file.delete()
+
 		await db
 			.delete(embeddings)
 			.where(
