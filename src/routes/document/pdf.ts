@@ -363,7 +363,6 @@ app.get('/:pdf_id/markdown', async (c) => {
 				markdown += text
 				prev = text
 				i++
-				console.log(i)
 			}
 
 			await db
@@ -596,7 +595,6 @@ app.post(
 					}),
 					execute: async ({ question }) => {
 						const content = await findRelevantContent(question)
-						console.log(content)
 						return content
 					},
 				}),
