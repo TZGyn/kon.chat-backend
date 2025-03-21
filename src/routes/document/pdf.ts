@@ -659,13 +659,13 @@ app.delete('/:pdf_id', async (c) => {
 	const token = getCookie(c, 'session') ?? null
 
 	if (token === null) {
-		return c.json({}, 400)
+		return c.json({ success: false }, 400)
 	}
 
 	const { session, user } = await validateSessionToken(token)
 
 	if (!user) {
-		return c.json({}, 400)
+		return c.json({ success: false }, 400)
 	}
 
 	if (session !== null) {
@@ -704,7 +704,7 @@ app.delete('/:pdf_id', async (c) => {
 			)
 	}
 
-	return c.json({}, 200)
+	return c.json({ success: true }, 200)
 })
 
 export default app
