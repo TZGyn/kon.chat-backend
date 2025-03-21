@@ -195,7 +195,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 	const numberOfPages = pdfDoc.getPages().length
 	let pages = []
 	let index = 0
-	const length = 5
+	const length = 3
 	while (index < numberOfPages) {
 		if (index + length >= numberOfPages) {
 			break
