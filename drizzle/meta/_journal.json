@@ -43,6 +43,13 @@
       "when": 1742450883213,
       "tag": "0005_wise_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1742578201868,
+      "tag": "0006_faulty_stick",
+      "breakpoints": true
     }
   ]
 }

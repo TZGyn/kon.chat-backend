@@ -8,13 +8,7 @@ import {
 	validateSessionToken,
 } from '$lib/auth/session'
 import { nanoid } from '$lib/utils'
-
-const client = new Bun.S3Client({
-	accessKeyId: Bun.env.S3_ACCESS_KEY_ID,
-	secretAccessKey: Bun.env.S3_SECRET_ACCESS_KEY,
-	bucket: Bun.env.S3_BUCKET,
-	endpoint: Bun.env.S3_API_URL,
-})
+import { s3Client } from '$lib/s3'
 
 const app = new Hono()
 
@@ -66,7 +60,7 @@ app.post(
 		const file = c.req.valid('form').file
 
 		const id = `${user.id}/${nanoid()}-${file.name}`
-		const s3file = client.file(id)
+		const s3file = s3Client.file(id)
 
 		await s3file.write(file)
 

@@ -39,6 +39,17 @@ export const modelSchema = z
 	])
 	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
 
+const getContextSize = (provider: Provider) => {
+	if (provider.model === 'gemini-2.0-flash-001') return 1_000_000
+	if (
+		provider.model === 'o3-mini' ||
+		provider.model === 'claude-3-5-sonnet-latest' ||
+		provider.model === 'claude-3-7-sonnet-20250219'
+	)
+		return 300_000
+	return 128_000
+}
+
 export type Provider = z.infer<typeof modelSchema>
 
 export const freeModels = ['gemini-2.0-flash-001']
@@ -72,6 +83,7 @@ export const getModel = ({
 	| {
 			model: LanguageModelV1
 			providerOptions: Record<any, any> | undefined
+			contextSize: number
 			error: null
 	  }
 	| { model: null; providerOptions: null; error: string } => {
@@ -223,5 +235,10 @@ export const getModel = ({
 		}
 	}
 
-	return { model, providerOptions, error: null }
+	return {
+		model,
+		providerOptions,
+		error: null,
+		contextSize: getContextSize(provider),
+	}
 }

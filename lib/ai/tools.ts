@@ -76,6 +76,12 @@ export const tools = (
 		| 'web_reader',
 ) => {
 	const toolList = {
+		stock_chart: tool({
+			description: 'Get stock data',
+			parameters: z.object({
+				symbol: z.string().describe('symbol of the stock'),
+			}),
+		}),
 		x_search: tool({
 			description: 'Search X (formerly Twitter) posts.',
 			parameters: z.object({

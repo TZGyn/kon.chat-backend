@@ -5,6 +5,8 @@ import {
 	bigint,
 	json,
 	integer,
+	vector,
+	index,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -91,6 +93,36 @@ export const youtube = pgTable('youtube', (t) => ({
 	uploadTime: t.text('upload_time').notNull(),
 	createdAt: t.bigint('created_at', { mode: 'number' }).notNull(),
 }))
+
+export const document = pgTable('document', (t) => ({
+	id: t.varchar('id', { length: 255 }).primaryKey().notNull(),
+	userId: text('user_id').notNull(),
+	type: t.varchar('type').$type<'pdf'>().notNull(),
+	name: t.varchar('name', { length: 255 }).notNull(),
+	url: t.varchar('url', { length: 255 }).notNull(),
+	markdown: t.text('markdown'),
+	summary: t.text('summary'),
+	createdAt: t.bigint('created_at', { mode: 'number' }).notNull(),
+}))
+
+export const embeddings = pgTable(
+	'embeddings',
+	{
+		id: varchar('id', { length: 255 }).primaryKey(),
+		resourceType: varchar('resource_type', { length: 255 })
+			.$type<'document'>()
+			.notNull(),
+		resourceId: varchar('resource_id', { length: 255 }).notNull(),
+		content: text('content').notNull(),
+		embedding: vector('embedding', { dimensions: 768 }).notNull(),
+	},
+	(table) => [
+		index('embeddingIndex').using(
+			'hnsw',
+			table.embedding.op('vector_cosine_ops'),
+		),
+	],
+)
 
 export const userRelations = relations(user, ({ many }) => ({
 	sessions: many(session),
