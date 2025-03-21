@@ -273,7 +273,6 @@ app.get('/:pdf_id/markdown', async (c) => {
 						- You will be given a maximum of ${length} pages of pdf to convert
 						- You will also be provided the previous generated markdown pages (if exist)
 						- You will also be provided the next pdf pages for preview (if exist)
-						- Accuracy and presentation is very important
 
 						if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
 						example:
@@ -299,7 +298,6 @@ app.get('/:pdf_id/markdown', async (c) => {
 						If your generated pages cuts off with a table, but the next pdf pages has the remaining table rows, do not close the table on the end of your generated pages
 						Let the next round continue the rows
 						Another example is dont close codeblock if the codeblock continues on the next pages
-						Also dont end on a newline if the content continues on the next page
 
 						Do not generate content on the preview pages
 
@@ -566,9 +564,9 @@ app.post(
 		const { contextSize, error, model, providerOptions } =
 			modelDetails
 
-		let useEmbeddings = true
+		let useEmbeddings = false
 		if (Math.floor(markdown.length / 4) >= contextSize) {
-			useEmbeddings = true
+			useEmbeddings = false
 		}
 
 		const pdf_id = c.req.param('pdf_id')
