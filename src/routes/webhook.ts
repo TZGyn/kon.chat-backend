@@ -27,9 +27,7 @@ app.post(
 					.update(user)
 					.set({
 						plan: 'free',
-						searchLimit: 0,
-						premiumChatLimit: 0,
-						standardChatLimit: 0,
+						credits: 0,
 					})
 					.where(eq(user.polarCustomerId, customerId))
 
@@ -72,16 +70,10 @@ app.post(
 								priceId === Bun.env.POLAR_PRO_PLAN_PRICE_ID
 									? 'pro'
 									: 'basic',
-							standardChatLimit:
+							credits:
 								priceId === Bun.env.POLAR_PRO_PLAN_PRICE_ID
 									? 3000
 									: 1000,
-							premiumChatLimit:
-								priceId === Bun.env.POLAR_PRO_PLAN_PRICE_ID ? 200 : 0,
-							searchLimit:
-								priceId === Bun.env.POLAR_PRO_PLAN_PRICE_ID
-									? 400
-									: 100,
 						})
 						.where(eq(user.polarCustomerId, customerId))
 

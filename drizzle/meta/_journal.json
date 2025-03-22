@@ -50,6 +50,13 @@
       "when": 1742578201868,
       "tag": "0006_faulty_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1742668680669,
+      "tag": "0007_gigantic_wendigo",
+      "breakpoints": true
     }
   ]
 }

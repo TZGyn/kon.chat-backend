@@ -130,6 +130,7 @@ app.post(
 			cookie,
 		} = await checkRatelimit({
 			c,
+			provider,
 			mode,
 		})
 
@@ -165,7 +166,6 @@ app.post(
 		}
 
 		const { model, error, providerOptions } = getModel({
-			limit,
 			provider,
 			searchGrounding,
 			token,
@@ -325,18 +325,6 @@ app.post(
 						reasoning,
 						providerMetadata,
 					}) => {
-						if (token.startsWith('free:')) {
-							redis.set<Limit>(
-								token + '-limit',
-								{
-									...limit,
-									freeLimit: limit.freeLimit - 1,
-								},
-								{ ex: 60 * 60 * 24 },
-							)
-							return
-						}
-
 						updateUserChatAndLimit({
 							chatId,
 							messages: response.messages,

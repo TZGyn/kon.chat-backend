@@ -518,6 +518,7 @@ app.post(
 			cookie,
 		} = await checkRatelimit({
 			c,
+			provider,
 			mode,
 		})
 
@@ -551,7 +552,6 @@ app.post(
 		}
 
 		const modelDetails = getModel({
-			limit,
 			provider,
 			searchGrounding,
 			token,

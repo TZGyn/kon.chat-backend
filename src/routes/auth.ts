@@ -40,13 +40,8 @@ app.get('/me', async (c) => {
 				name: '',
 				plan: 'trial',
 				avatar: '',
-				freeChatLimit: limit.freeLimit,
-				standardChatLimit: limit.standardLimit,
-				premiumChatLimit: limit.premiumLimit,
-				standardChatCredit: limit.standardCredit,
-				premiumChatCredit: limit.premiumCredit,
-				searchLimit: limit.searchLimit,
-				searchCredit: limit.searchCredit,
+				credits: limit.credits,
+				purchased_credits: limit.purchased_credits,
 			},
 		})
 	}
@@ -80,13 +75,8 @@ app.get('/me', async (c) => {
 					session.id + '-limit',
 					{
 						plan: currentUser.plan,
-						freeLimit: 0,
-						standardLimit: currentUser.standardChatLimit,
-						premiumLimit: currentUser.premiumChatLimit,
-						standardCredit: currentUser.standardChatCredit,
-						premiumCredit: currentUser.premiumChatCredit,
-						searchLimit: currentUser.searchLimit,
-						searchCredit: currentUser.searchCredit,
+						credits: currentUser.credits,
+						purchased_credits: currentUser.purchasedCredits,
 					},
 					{ ex: 60 * 60 * 24 },
 				)
@@ -101,13 +91,8 @@ app.get('/me', async (c) => {
 					name: user.username,
 					plan: user.plan,
 					avatar: user.avatar,
-					freeChatLimit: 0,
-					standardChatLimit: user.standardChatLimit,
-					premiumChatLimit: user.premiumChatLimit,
-					standardChatCredit: user.standardChatCredit,
-					premiumChatCredit: user.premiumChatCredit,
-					searchLimit: user.searchLimit,
-					searchCredit: user.searchCredit,
+					credits: user.credits,
+					purchased_credits: user.purchasedCredits,
 			  }
 			: null,
 	})
@@ -251,12 +236,8 @@ app.get('/login/google/callback', async (c) => {
 				username: username,
 				email: email,
 				plan: 'free',
-				searchCredit: 0,
-				premiumChatLimit: 0,
-				premiumChatCredit: 0,
-				searchLimit: 0,
-				standardChatCredit: 50,
-				standardChatLimit: 0,
+				credits: 0,
+				purchasedCredits: 100,
 				createdAt: Date.now(),
 			})
 			.returning()
@@ -370,12 +351,8 @@ app.get('/login/github/callback', async (c) => {
 				username: username,
 				email: email,
 				plan: 'free',
-				searchCredit: 0,
-				premiumChatLimit: 0,
-				premiumChatCredit: 0,
-				searchLimit: 0,
-				standardChatCredit: 50,
-				standardChatLimit: 0,
+				credits: 0,
+				purchasedCredits: 100,
 				createdAt: Date.now(),
 			})
 			.returning()

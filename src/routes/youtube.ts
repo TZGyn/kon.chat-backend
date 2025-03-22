@@ -228,6 +228,7 @@ app.post(
 			token,
 		} = await checkRatelimit({
 			c,
+			provider,
 			mode: 'chat',
 		})
 
@@ -243,7 +244,6 @@ app.post(
 		}
 
 		const { model, error, providerOptions } = getModel({
-			limit,
 			provider,
 			searchGrounding,
 			token,

@@ -6,6 +6,7 @@ import {
 	wrapLanguageModel,
 } from 'ai'
 import { Limit } from '$lib/ratelimit'
+import { costTable } from './credits/cost'
 
 export const modelSchema = z
 	.union([
@@ -52,7 +53,7 @@ const getContextSize = (provider: Provider) => {
 
 export type Provider = z.infer<typeof modelSchema>
 
-export const freeModels = ['gemini-2.0-flash-001']
+export const freeModels = ['gemini-2.0-flash-001'] as const
 
 export const standardModels = [
 	'gpt-4o',
@@ -62,23 +63,22 @@ export const standardModels = [
 	'llama-3.3-70b-versatile',
 	'grok-2-1212',
 	'grok-2-vision-1212',
-]
+	'qwen-qwq-32b',
+] as const
 
 export const premiumModels = [
 	'claude-3-5-sonnet-latest',
 	'claude-3-7-sonnet-20250219',
-]
+] as const
 
 export const getModel = ({
 	provider,
 	searchGrounding,
 	token,
-	limit,
 }: {
-	provider: z.infer<typeof modelSchema>
+	provider: Provider
 	searchGrounding: boolean
 	token: string
-	limit: Limit
 }):
 	| {
 			model: LanguageModelV1
@@ -89,75 +89,19 @@ export const getModel = ({
 	| { model: null; providerOptions: null; error: string } => {
 	let model
 	let providerOptions = {}
-	if (provider.name === 'openai') {
-		if (!token) {
-			return {
-				error: 'You have to be logged in to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
 
-		if (limit.plan === 'free' || limit.plan === 'trial') {
-			return {
-				error:
-					'You need to have basic or higher plan to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.standardLimit + limit.standardCredit <= 0) {
-			return {
-				error: 'You have reached the limit',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
+	if (provider.name === 'google') {
+		model = google(provider.model, {
+			useSearchGrounding: searchGrounding,
+		})
+	} else if (provider.name === 'openai') {
 		model = openai(provider.model)
 		if (provider.model === 'o3-mini') {
 			providerOptions = {
 				openai: { reasoningEffort: 'high' },
 			}
 		}
-	} else if (provider.name === 'google') {
-		if (limit.plan === 'trial' && limit.freeLimit <= 0) {
-			return {
-				error: 'You have reached the limit',
-				model: null,
-				providerOptions: null,
-			}
-		}
-		model = google(provider.model, {
-			useSearchGrounding: searchGrounding,
-		})
 	} else if (provider.name === 'groq') {
-		if (!token) {
-			return {
-				error: 'You have to be logged in to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.plan === 'free' || limit.plan === 'trial') {
-			return {
-				error:
-					'You need to have basic or higher plan to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.standardLimit + limit.standardCredit <= 0) {
-			return {
-				error: 'You have reached the limit',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
 		if (provider.model !== 'llama-3.3-70b-versatile') {
 			model = wrapLanguageModel({
 				model: groq(provider.model),
@@ -169,29 +113,6 @@ export const getModel = ({
 			model = groq(provider.model)
 		}
 	} else if (provider.name === 'anthropic') {
-		if (!token) {
-			return {
-				error: 'You have to be logged in to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.plan !== 'pro') {
-			return {
-				error: 'You need to have pro plan to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.premiumCredit + limit.premiumLimit <= 0) {
-			return {
-				error: 'You have reached the limit',
-				model: null,
-				providerOptions: null,
-			}
-		}
 		model = anthropic(provider.model)
 		if (provider.model === 'claude-3-7-sonnet-20250219') {
 			providerOptions = {
@@ -201,31 +122,6 @@ export const getModel = ({
 			}
 		}
 	} else if (provider.name === 'xai') {
-		if (!token) {
-			return {
-				error: 'You have to be logged in to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.plan === 'free' || limit.plan === 'trial') {
-			return {
-				error:
-					'You need to have basic or higher plan to use this model',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
-		if (limit.standardLimit + limit.standardCredit <= 0) {
-			return {
-				error: 'You have reached the limit',
-				model: null,
-				providerOptions: null,
-			}
-		}
-
 		model = xai(provider.model)
 	} else {
 		return {

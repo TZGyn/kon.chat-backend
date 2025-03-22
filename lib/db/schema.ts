@@ -17,30 +17,8 @@ export const user = pgTable('user', {
 	githubId: varchar('github_id', { length: 255 }),
 	username: varchar('username', { length: 255 }).notNull(),
 	email: varchar('email', { length: 255 }).notNull(),
-	standardChatLimit: bigint('standard_chat_limit', { mode: 'number' })
-		.notNull()
-		.default(0),
-	premiumChatLimit: bigint('premium_chat_limit', { mode: 'number' })
-		.notNull()
-		.default(0),
-	standardChatCredit: bigint('standard_chat_credit', {
-		mode: 'number',
-	})
-		.notNull()
-		.default(0),
-	premiumChatCredit: bigint('premium_chat_credit', {
-		mode: 'number',
-	})
-		.notNull()
-		.default(0),
-	searchLimit: bigint('search_limit', {
-		mode: 'number',
-	})
-		.notNull()
-		.default(0),
-	searchCredit: bigint('search_credit', {
-		mode: 'number',
-	})
+	credits: bigint('credits', { mode: 'number' }).notNull().default(0),
+	purchasedCredits: bigint('purchased_credits', { mode: 'number' })
 		.notNull()
 		.default(0),
 	polarCustomerId: varchar('polar_customer_id', { length: 255 }),

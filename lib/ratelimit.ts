@@ -14,29 +14,23 @@ import { premiumModels, Provider, standardModels } from '$lib/model'
 import { user } from '$lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '$lib/db'
+import { calculateCost, costTable } from './credits/cost'
+import { Tool } from './ai/tools'
 
 export type Limit = {
 	plan: 'free' | 'basic' | 'pro' | 'owner' | 'trial'
-	freeLimit: number
-	standardLimit: number
-	premiumLimit: number
-	standardCredit: number
-	premiumCredit: number
-	searchLimit: number
-	searchCredit: number
+	credits: number
+	purchased_credits: number
 }
 
 export const checkRatelimit = async ({
 	c,
+	provider,
 	mode,
 }: {
 	c: Context
-	mode:
-		| 'x_search'
-		| 'chat'
-		| 'web_search'
-		| 'academic_search'
-		| 'web_reader'
+	provider: Provider
+	mode: Tool
 }) => {
 	let token = getCookie(c, 'session') ?? null
 	let cookie: 'none' | 'set' | 'delete' = 'none'
@@ -47,13 +41,7 @@ export const checkRatelimit = async ({
 			token + '-limit',
 			{
 				plan: 'trial',
-				freeLimit: 10,
-				standardLimit: 0,
-				premiumLimit: 0,
-				standardCredit: 0,
-				premiumCredit: 0,
-				searchLimit: 0,
-				searchCredit: 0,
+				credits: 0,
 			},
 			{ ex: 60 * 60 * 24 },
 		)
@@ -81,20 +69,15 @@ export const checkRatelimit = async ({
 
 			limit = {
 				plan: user.plan,
-				freeLimit: 0,
-				standardCredit: user.standardChatCredit,
-				premiumCredit: user.premiumChatCredit,
-				premiumLimit: user.premiumChatLimit,
-				standardLimit: user.standardChatLimit,
-				searchCredit: user.searchCredit,
-				searchLimit: user.searchLimit,
+				credits: user.credits,
+				purchased_credits: user.purchasedCredits,
 			}
 		}
 	}
 
 	if (
-		mode !== 'chat' &&
-		limit.searchCredit + limit.searchLimit <= 0
+		limit.credits + limit.purchased_credits <
+		calculateCost({ provider, tool: mode })
 	) {
 		return { error: 'You have reached the limit for search' }
 	}
@@ -116,50 +99,23 @@ export const updateUserRatelimit = async ({
 		| 'academic_search'
 		| 'web_reader'
 }) => {
-	const minusSearchLimit =
-		loggedInUser.searchLimit > 0 && mode !== 'chat'
-	const minusSearchCredit =
-		!minusSearchLimit &&
-		loggedInUser.searchCredit > 0 &&
-		mode !== 'chat'
+	if (provider.model === 'gemini-2.0-flash-001') {
+		return
+	}
 
-	const minusStandardLimit =
-		loggedInUser.standardChatLimit > 0 &&
-		standardModels.includes(provider.model)
-	const minusStandardCredit =
-		!minusStandardLimit &&
-		loggedInUser.standardChatCredit > 0 &&
-		standardModels.includes(provider.model)
-
-	const minusPremiumLimit =
-		loggedInUser.premiumChatLimit > 0 &&
-		premiumModels.includes(provider.model)
-	const minusPremiumCredit =
-		!minusPremiumLimit &&
-		loggedInUser.premiumChatCredit > 0 &&
-		premiumModels.includes(provider.model)
+	const cost = costTable[provider.model]
+	let credits = loggedInUser.credits
+	credits -= cost
+	let purchased_credits = loggedInUser.purchasedCredits
+	if (credits < 0) {
+		purchased_credits -= Math.abs(credits)
+	}
 
 	const [updatedUser] = await db
 		.update(user)
 		.set({
-			searchLimit: sql`${user.searchLimit} - ${
-				minusSearchLimit ? '1' : '0'
-			}`,
-			searchCredit: sql`${user.searchCredit} - ${
-				minusSearchCredit ? '1' : '0'
-			}`,
-			standardChatLimit: sql`${user.standardChatLimit} - ${
-				minusStandardLimit ? '1' : '0'
-			}`,
-			standardChatCredit: sql`${user.standardChatCredit} - ${
-				minusStandardCredit ? '1' : '0'
-			}`,
-			premiumChatLimit: sql`${user.premiumChatLimit} - ${
-				minusPremiumLimit ? '1' : '0'
-			}`,
-			premiumChatCredit: sql`${user.premiumChatCredit} - ${
-				minusPremiumCredit ? '1' : '0'
-			}`,
+			credits: credits,
+			purchasedCredits: purchased_credits,
 		})
 		.where(eq(user.id, loggedInUser.id))
 		.returning()
@@ -182,13 +138,8 @@ export const updateUserRatelimit = async ({
 				session.id + '-limit',
 				{
 					plan: updatedUser.plan,
-					freeLimit: 0,
-					standardLimit: updatedUser.standardChatLimit,
-					premiumLimit: updatedUser.premiumChatLimit,
-					standardCredit: updatedUser.standardChatCredit,
-					premiumCredit: updatedUser.premiumChatCredit,
-					searchLimit: updatedUser.searchLimit,
-					searchCredit: updatedUser.searchCredit,
+					credits: currentUser.credits,
+					purchased_credits: currentUser.purchasedCredits,
 				},
 				{ ex: 60 * 60 * 24 },
 			)
@@ -215,13 +166,8 @@ export const syncUserRatelimitWithDB = async (userId: string) => {
 				session.id + '-limit',
 				{
 					plan: currentUser.plan,
-					freeLimit: 0,
-					standardLimit: currentUser.standardChatLimit,
-					premiumLimit: currentUser.premiumChatLimit,
-					standardCredit: currentUser.standardChatCredit,
-					premiumCredit: currentUser.premiumChatCredit,
-					searchLimit: currentUser.searchLimit,
-					searchCredit: currentUser.searchCredit,
+					credits: currentUser.credits,
+					purchased_credits: currentUser.purchasedCredits,
 				},
 				{ ex: 60 * 60 * 24 },
 			)

@@ -66,15 +66,17 @@ const deduplicateByDomainAndUrl = <T extends { url: string }>(
 	})
 }
 
-export const tools = (
-	dataStream: DataStreamWriter,
-	mode:
-		| 'chat'
-		| 'x_search'
-		| 'web_search'
-		| 'academic_search'
-		| 'web_reader',
-) => {
+export const toolList = [
+	'chat',
+	'x_search',
+	'web_search',
+	'academic_search',
+	'web_reader',
+] as const
+
+export type Tool = (typeof toolList)[number]
+
+export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
 	const toolList = {
 		stock_chart: tool({
 			description: 'Get stock data',
