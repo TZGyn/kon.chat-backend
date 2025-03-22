@@ -258,6 +258,10 @@ app.post(
 							weekday: 'short',
 						})}
 
+						Note: frontend has a tool to display mermaid code, 
+						so you don't have to tell the user you don't have the ability to render mermaid code 
+						or tell the user how to render them
+
 						if a math equation is generated, wrap it around $$ for katex inline styling and $$ for block
 						example:
 
