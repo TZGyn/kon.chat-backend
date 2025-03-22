@@ -1,3 +1,4 @@
+import { Tool } from '$lib/ai/tools'
 import {
 	generateTitleFromUserMessage,
 	sanitizeResponseMessages,
@@ -36,12 +37,7 @@ export const updateUserChatAndLimit = async ({
 	provider: Provider
 	providerMetadata: any | undefined
 	usage: LanguageModelUsage
-	mode:
-		| 'x_search'
-		| 'chat'
-		| 'web_search'
-		| 'academic_search'
-		| 'web_reader'
+	mode: Tool
 }) => {
 	const { session, user: loggedInUser } = await validateSessionToken(
 		token,

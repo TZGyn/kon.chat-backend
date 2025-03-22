@@ -92,23 +92,22 @@ export const updateUserRatelimit = async ({
 }: {
 	user: User
 	provider: Provider
-	mode:
-		| 'x_search'
-		| 'chat'
-		| 'web_search'
-		| 'academic_search'
-		| 'web_reader'
+	mode: Tool
 }) => {
 	if (provider.model === 'gemini-2.0-flash-001') {
 		return
 	}
 
-	const cost = costTable[provider.model]
+	const cost = costTable[provider.model] + costTable[mode]
 	let credits = loggedInUser.credits
 	credits -= cost
 	let purchased_credits = loggedInUser.purchasedCredits
 	if (credits < 0) {
 		purchased_credits -= Math.abs(credits)
+		credits = 0
+		if (purchased_credits < 0) {
+			purchased_credits = 0
+		}
 	}
 
 	const [updatedUser] = await db
