@@ -286,6 +286,7 @@ app.post(
 						${additionalSystemPrompt[mode]}
 					`,
 					providerOptions: providerOptions,
+					abortSignal: c.req.raw.signal,
 					onChunk: ({ chunk }) => {},
 					maxSteps: 5,
 					// experimental_activeTools: [...activeTools(mode)],
@@ -313,7 +314,7 @@ app.post(
 						// )
 					},
 					onError: (error) => {
-						console.log(error)
+						console.log('Error', error)
 					},
 					experimental_transform: smoothStream({
 						delayInMs: 20, // optional: defaults to 10ms
@@ -324,6 +325,7 @@ app.post(
 						usage,
 						reasoning,
 						providerMetadata,
+						finishReason,
 					}) => {
 						updateUserChatAndLimit({
 							chatId,
@@ -347,7 +349,7 @@ app.post(
 			onError: (error) => {
 				// Error messages are masked by default for security reasons.
 				// If you want to expose the error message to the client, you can do so here:
-				console.log(error)
+				console.log('Stream Error', error)
 				return error instanceof Error ? error.message : String(error)
 			},
 		})
