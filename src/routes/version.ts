@@ -58,7 +58,7 @@ type VercelDeployments = {
 
 app.get('/app/latest-deployment', async (c) => {
 	try {
-		const url = `https://api.vercel.com/v6/deployments?projectId=${Bun.env.VERCEL_APP_PROJECT_ID}&limit=1`
+		const url = `https://api.vercel.com/v6/deployments?projectId=${Bun.env.VERCEL_APP_PROJECT_ID}&limit=1&state=READY`
 		const options = {
 			method: 'GET',
 			headers: { Authorization: 'Bearer ' + Bun.env.VERCEL_API_KEY },
