@@ -195,7 +195,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 	const numberOfPages = pdfDoc.getPages().length
 	let pages = []
 	let index = 0
-	const length = 3
+	const length = 4
 	while (index < numberOfPages) {
 		if (index + length >= numberOfPages) {
 			break
@@ -262,9 +262,10 @@ app.get('/:pdf_id/markdown', async (c) => {
 					]
 				}
 				const result = streamText({
-					model: google('gemini-2.0-pro-exp-02-05', {
+					model: google('gemini-2.0-flash-001', {
 						structuredOutputs: false,
 					}),
+					experimental_continueSteps: true,
 					system: `
 						- You are a pdf markdown generator
 						- You will be given a pdf in chunks and convert it to markdown
