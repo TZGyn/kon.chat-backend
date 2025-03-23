@@ -311,7 +311,6 @@ app.get('/:pdf_id/markdown', async (c) => {
 
 						Generate flowchart/diagram as mermaid code
 
-
 						The previous pages are given to you for reference
 						For example: If the previous markdown cuts off with a table and the pdf given to you is a continuation of that table
 						Do not generate the table headers again, just continue the table rows
@@ -326,7 +325,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 
 						Do not generate content on the preview pages
 
-						Skip items such as branding and footer that appears in every page
+						Skip items such as branding
 						Do not include the page number
 
 						Feel free to add heading if it makes the markdown look better
