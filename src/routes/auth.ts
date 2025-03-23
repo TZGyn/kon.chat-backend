@@ -59,7 +59,7 @@ app.get('/me', async (c) => {
 	}
 
 	const currentUser = await db.query.user.findFirst({
-		where: (user, { eq }) => eq(user.id, user.id),
+		where: (userTable, { eq }) => eq(userTable.id, user.id),
 		with: {
 			sessions: {
 				where: (session, { gte }) =>

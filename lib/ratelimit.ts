@@ -79,7 +79,7 @@ export const checkRatelimit = async ({
 		limit.credits + limit.purchased_credits <
 		calculateCost({ provider, tool: mode })
 	) {
-		return { error: 'You have reached the limit for search' }
+		return { error: 'You are out of credits' }
 	}
 
 	return { limit, token, cookie }
