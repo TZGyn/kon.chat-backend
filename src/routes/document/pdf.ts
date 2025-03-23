@@ -262,7 +262,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 					]
 				}
 				const result = streamText({
-					model: google('gemini-2.0-pro-exp-02-05', {
+					model: google('gemini-2.0-flash-001', {
 						structuredOutputs: false,
 					}),
 					system: `
@@ -315,6 +315,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 						The previous pages are given to you for reference
 						For example: If the previous markdown cuts off with a table and the pdf given to you is a continuation of that table
 						Do not generate the table headers again, just continue the table rows
+						DO NOT COPY ANY MARKDOWN FROM PREVIOUS PAGES, YOU ARE ONLY ALLOWED TO GENERATE CONTENT THAT CONTINUES FROM THE PAGES
 
 						Be especially careful at the end the of generated markdown, you will be continuing from there at the next stage
 						Since you will be given the next pdf pages, you must use them to decide what to put at the end of your generated markdown
