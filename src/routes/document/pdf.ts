@@ -195,7 +195,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 	const numberOfPages = pdfDoc.getPages().length
 	let pages = []
 	let index = 0
-	const length = 4
+	const length = 3
 	while (index < numberOfPages) {
 		if (index + length >= numberOfPages) {
 			break
@@ -262,18 +262,19 @@ app.get('/:pdf_id/markdown', async (c) => {
 					]
 				}
 				const result = streamText({
-					model: google('gemini-2.0-flash-001', {
+					model: google('gemini-2.0-pro-exp-02-05', {
 						structuredOutputs: false,
 					}),
-					experimental_continueSteps: true,
 					system: `
-						- You are a pdf markdown generator
+						- You are a pdf markdown generator, you must follow every instruction given to you with 100% accuracy (this is non-negotiable)
 						- You will be given a pdf in chunks and convert it to markdown
 						- The generated markdown will be merged together in a later stage
 						- You will only generate the content in the pdf, no extra words
+						- You cannot skip content unless its branding/footer that appears in every page or page number
 						- You will be given a maximum of ${length} pages of pdf to convert
 						- You will also be provided the previous generated markdown pages (if exist)
 						- You will also be provided the next pdf pages for preview (if exist)
+						- Accuracy is very important, generate the markdown in a way that retains its pdf structure (ie, correct use of headings, header size, tables and codeblocks)
 
 						if a math equation is generated, wrap it around $ for katex inline styling and $$ for block
 						example:
@@ -287,7 +288,29 @@ app.get('/:pdf_id/markdown', async (c) => {
 						$$
 
 						There are rules you must follow:
-						Do not repeat items from previous generated markdown
+						Do not repeat items from previous generated markdown (this is very important)
+						Do not wrap the generated content in markdown codeblock, the frontend already assumed the generated string is in markdown format
+						Only return the content
+
+						NEVER START THE GENERATED CONTENT WITH \`\`\`
+						Only return the content, dont wrap it in anything
+						You have a habit of starting new page with triple tilde, stop that
+
+						Never generate a codeblock unless its code (this is very important)
+						Do not start the generated content with markdown codeblock
+						There have been instance of you randomly generating codeblock on new page, this is unacceptable
+						There have also been instances of you generating table rows as codeblock, use the previous generated markdown given to you the recognize if you are dealing with a codeblock or table if you're confused
+
+						Always generate table as table
+						DONT TRY TO FILL IN MISSING DATA OR ATTEMPT TO FIX BROKEN DATA
+						Only generate codeblock unless you are absolutely certain it is code (python/javascript)
+
+						Always generate table of content as nested list
+
+						Always generate references as a list
+
+						Generate flowchart/diagram as mermaid code
+
 
 						The previous pages are given to you for reference
 						For example: If the previous markdown cuts off with a table and the pdf given to you is a continuation of that table
@@ -305,29 +328,12 @@ app.get('/:pdf_id/markdown', async (c) => {
 						Skip items such as branding and footer that appears in every page
 						Do not include the page number
 
-						NEVER START THE GENERATED CONTENT WITH \`\`\`
-						Only return the content, dont wrap it in anything
-						You have a habit of starting new page with triple tilde, stop that
-
-						Do not generate a codeblock unless its code (this is very important)
-						Do not start the generated content with markdown codeblock
-						There have been instance of you randomly generating codeblock on new page, this is unacceptable
-						There have also been instances of you generating table rows as codeblock, use the previous generated markdown given to you the recognize if you are dealing with a codeblock or table if you're confused
-
-						Always generate table as table
-						DONT TRY TO FILL IN MISSING DATA OR ATTEMPT TO FIX BROKEN DATA
-						Only generate codeblock unless you are absolutely certain it is code (python/javascript)
-
-						Always generate table of content as nested list
-
-						Generate flowchart/diagram as mermaid code
-
 						Feel free to add heading if it makes the markdown look better
 						Ex: If the reference heading is small, you can make it big for better clarity
 					`,
 					experimental_transform: smoothStream({
-						delayInMs: 20, // optional: defaults to 10ms
-						chunking: 'word', // optional: defaults to 'word'
+						delayInMs: 0, // optional: defaults to 10ms
+						chunking: 'line', // optional: defaults to 'word'
 					}),
 					messages: [
 						{
@@ -337,7 +343,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 									type: 'text',
 									text:
 										i > 0
-											? 'Previous pages in markdown'
+											? 'Previous pages in markdown (do not repeat this in the generated content)'
 											: 'No previous pages',
 								},
 								{ type: 'text', text: i > 0 ? prev : '' },
