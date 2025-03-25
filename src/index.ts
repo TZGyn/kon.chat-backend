@@ -15,6 +15,7 @@ import BillingRoutes from './routes/billing'
 import DocumentsRoutes from './routes/document'
 import YoutubeRoutes from './routes/youtube'
 import VersionRoutes from './routes/version'
+import ImageRoutes from './routes/image'
 
 const app = new Hono()
 app.use(cors({ origin: [Bun.env.FRONTEND_URL!], credentials: true }))
@@ -61,6 +62,7 @@ app.route('/billing', BillingRoutes)
 app.route('/documents', DocumentsRoutes)
 app.route('/youtube', YoutubeRoutes)
 app.route('/version', VersionRoutes)
+app.route('/image', ImageRoutes)
 
 export default {
 	fetch: app.fetch,
