@@ -132,19 +132,23 @@ app.post(
 			},
 			// baseURL: undefined,
 		})
-		const result = await generateImage({
-			model: vertex.image(model, {
-				maxImagesPerCall: 4,
-			}),
-			prompt: prompt,
-			aspectRatio: aspect_ratio,
-			n: count,
-			providerOptions: {
-				vertex: { negativePrompt: negative_prompt },
-			},
-		})
+		try {
+			const result = await generateImage({
+				model: vertex.image(model, {
+					maxImagesPerCall: 4,
+				}),
+				prompt: prompt,
+				aspectRatio: aspect_ratio,
+				n: count,
+				providerOptions: {
+					vertex: { negativePrompt: negative_prompt },
+				},
+			})
 
-		return c.json({ images: result.images })
+			return c.json({ images: result.images })
+		} catch (error) {
+			return c.text('Unable to generate images')
+		}
 	},
 )
 
