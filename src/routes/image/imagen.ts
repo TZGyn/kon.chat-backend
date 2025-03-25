@@ -4,6 +4,16 @@ import { createVertex } from '@ai-sdk/google-vertex'
 import { experimental_generateImage as generateImage } from 'ai'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
+import { Limit } from '$lib/ratelimit'
+import { redis } from '$lib/redis'
+import { getCookie, setCookie } from 'hono/cookie'
+import { encodeHexLowerCase } from '@oslojs/encoding'
+import { sha256 } from '@oslojs/crypto/sha2'
+import {
+	deleteSessionTokenCookie,
+	setSessionTokenCookie,
+	validateSessionToken,
+} from '$lib/auth/session'
 
 const app = new Hono()
 
@@ -44,6 +54,41 @@ app.post(
 		]),
 	),
 	async (c) => {
+		let token = getCookie(c, 'session') ?? null
+		if (!token || token.startsWith('free:')) {
+			return c.json({}, 401)
+		}
+
+		let limit = await redis.get<Limit>(
+			encodeHexLowerCase(sha256(new TextEncoder().encode(token))) +
+				'-limit',
+		)
+
+		if (!limit) {
+			const { session, user } = await validateSessionToken(token)
+			if (!user) return c.json({ error: 'Invalid User' }, 401)
+
+			if (session !== null) {
+				setSessionTokenCookie(c, session.id, session.expiresAt)
+			} else {
+				deleteSessionTokenCookie(c)
+			}
+
+			limit = {
+				plan: user.plan,
+				credits: user.credits,
+				purchased_credits: user.purchasedCredits,
+			}
+
+			await redis.set(
+				session.id + '-limit',
+				{
+					...limit,
+				},
+				{ ex: 60 * 60 * 24 },
+			)
+		}
+
 		const { count, model, prompt, negative_prompt, aspect_ratio } =
 			c.req.valid('json')
 		// const region = Bun.env.FLY_REGION
