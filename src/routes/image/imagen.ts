@@ -8,6 +8,7 @@ import { z } from 'zod'
 const app = new Hono()
 
 const getGoogleLocation = (fly_region: string | undefined) => {
+	return 'us-west1'
 	switch (fly_region) {
 		case 'iad':
 			return 'us-west1'
