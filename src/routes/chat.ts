@@ -393,7 +393,65 @@ app.delete('/:chat_id', async (c) => {
 		.delete(chat)
 		.where(and(eq(chat.id, chatId), eq(chat.userId, user.id)))
 
-	await db.delete(message).where(eq(message.chatId, chatId))
+	const delete_messages = await db
+		.delete(message)
+		.where(eq(message.chatId, chatId))
+		.returning()
+
+	const attachments = delete_messages.flatMap((message) => {
+		let res = []
+		if (typeof message.content === 'string') {
+			return []
+		}
+		if (Array.isArray(message.content)) {
+			for (const content of message.content) {
+				if (content.type === 'text') {
+					continue
+				} else if (content.type === 'reasoning') {
+					continue
+				} else if (content.type === 'tool-call') {
+					continue
+				} else if (content.type === 'image') {
+					const url = content.image as string
+
+					if (Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL)) {
+						const id = (content.image as string).split('/').pop()
+						if (!id) continue
+						res.push(id)
+					}
+
+					continue
+				} else if (content.type === 'file') {
+					const url = content.data as string
+
+					if (Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL)) {
+						const id = (content.data as string).split('/').pop()
+
+						if (!id) continue
+						res.push(id)
+					}
+				}
+			}
+		}
+		return res
+	})
+
+	const deleted_uploads = await db
+		.delete(upload)
+		.where(
+			and(
+				inArray(upload.id, attachments),
+				eq(upload.userId, user.id),
+			),
+		)
+		.returning()
+
+	await Promise.all(
+		deleted_uploads.map(async (upload) => {
+			const s3file = s3Client.file(upload.key)
+			await s3file.delete()
+		}),
+	)
 
 	return c.json({ success: true })
 })
@@ -453,7 +511,7 @@ app.post(
 
 		await s3file.write(file)
 
-		const uploadId = nanoid()
+		const uploadId = nanoid() + `.${file.type.split('/').pop()}`
 		await db.insert(upload).values({
 			id: uploadId,
 			userId: user.id,

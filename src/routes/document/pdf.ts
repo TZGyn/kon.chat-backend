@@ -148,7 +148,7 @@ app.post(
 
 		const documentId = nanoid()
 
-		const uploadId = nanoid()
+		const uploadId = nanoid() + '.pdf'
 		await db.insert(upload).values({
 			id: uploadId,
 			userId: user.id,
