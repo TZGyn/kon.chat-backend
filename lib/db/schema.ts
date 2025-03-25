@@ -35,10 +35,23 @@ export const session = pgTable('session', {
 	expiresAt: bigint('expires_at_epoch', { mode: 'number' }).notNull(),
 })
 
+export const upload = pgTable('upload', (t) => ({
+	id: t.text('id').primaryKey(),
+	key: t.text('key').notNull(),
+	name: t.text('name').notNull(),
+	size: t.bigint('size', { mode: 'number' }).notNull(),
+	mimeType: t.varchar('mime_type', { length: 255 }).notNull(),
+	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+}))
+
 export const chat = pgTable('chat', {
 	id: text('id').primaryKey(),
 	userId: text('user_id').notNull(),
 	title: text('title').notNull(),
+	visibility: varchar('visibility', { length: 255 })
+		.$type<'private' | 'public'>()
+		.notNull()
+		.default('private'),
 	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
 
@@ -77,7 +90,7 @@ export const document = pgTable('document', (t) => ({
 	userId: text('user_id').notNull(),
 	type: t.varchar('type').$type<'pdf'>().notNull(),
 	name: t.varchar('name', { length: 255 }).notNull(),
-	url: t.varchar('url', { length: 255 }).notNull(),
+	uploadId: t.text('upload_id').notNull(),
 	markdown: t.text('markdown'),
 	summary: t.text('summary'),
 	createdAt: t.bigint('created_at', { mode: 'number' }).notNull(),
@@ -125,5 +138,12 @@ export const messageRelations = relations(message, ({ one }) => ({
 	chat: one(chat, {
 		fields: [message.chatId],
 		references: [chat.id],
+	}),
+}))
+
+export const documentRelations = relations(document, ({ one }) => ({
+	upload: one(upload, {
+		fields: [document.uploadId],
+		references: [upload.id],
 	}),
 }))

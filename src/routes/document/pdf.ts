@@ -11,7 +11,7 @@ import {
 } from '$lib/auth/session'
 import { updateUserLimit } from '$lib/chat/utils'
 import { db } from '$lib/db'
-import { document, embeddings } from '$lib/db/schema'
+import { document, embeddings, upload } from '$lib/db/schema'
 import { processMessages } from '$lib/message'
 import { getModel, modelSchema } from '$lib/model'
 import { checkRatelimit } from '$lib/ratelimit'
@@ -115,6 +115,8 @@ app.post(
 
 		const formData = c.req.valid('form')
 
+		let file
+
 		if ('url' in formData) {
 			const { url, name } = formData
 			try {
@@ -129,23 +131,15 @@ app.post(
 					return c.json({ id: '' }, 401)
 				}
 
-				const documentId = nanoid()
-				await db.insert(document).values({
-					id: documentId,
-					userId: user.id,
-					type: 'pdf',
-					name: name,
-					url: url,
-					createdAt: Date.now(),
-				})
-
-				return c.json({ id: documentId })
+				const pdfContent = await response.blob()
+				file = pdfContent
 			} catch (error) {
 				return c.json({ id: '' }, 401)
 			}
+		} else {
+			const { file: fileBlob } = formData
+			file = fileBlob
 		}
-
-		const { file } = formData
 
 		const id = `${user.id}/documents/${nanoid()}-${file.name}`
 		const s3file = s3Client.file(id)
@@ -154,12 +148,22 @@ app.post(
 
 		const documentId = nanoid()
 
+		const uploadId = nanoid()
+		await db.insert(upload).values({
+			id: uploadId,
+			key: id,
+			mimeType: file.type,
+			name: file.name,
+			size: file.size,
+			createdAt: Date.now(),
+		})
+
 		await db.insert(document).values({
 			id: documentId,
 			userId: user.id,
 			type: 'pdf',
 			name: file.name,
-			url: id,
+			uploadId: uploadId,
 			createdAt: Date.now(),
 		})
 
@@ -180,6 +184,9 @@ app.get('/:pdf_id/markdown', async (c) => {
 	const pdfData = await db.query.document.findFirst({
 		where: (document, { eq, and }) =>
 			and(eq(document.id, pdf_id), eq(document.type, 'pdf')),
+		with: {
+			upload: true,
+		},
 	})
 
 	if (!pdfData) {
@@ -190,7 +197,7 @@ app.get('/:pdf_id/markdown', async (c) => {
 		return c.json({ markdown: pdfData.markdown })
 	}
 
-	const s3file = s3Client.file(pdfData.url)
+	const s3file = s3Client.file(pdfData.upload.key)
 	const pdfDoc = await PDFDocument.load(await s3file.arrayBuffer())
 	const numberOfPages = pdfDoc.getPages().length
 	let pages = []
@@ -487,10 +494,7 @@ app.get('/:pdf_id', async (c) => {
 		return c.text('Invalid ID', { status: 400 })
 	}
 	return c.json({
-		pdf: {
-			...pdfData,
-			url: Bun.env.S3_PUBLIC_URL + '/' + pdfData.url,
-		},
+		pdf: pdfData,
 	})
 })
 
@@ -697,10 +701,6 @@ app.delete('/:pdf_id', async (c) => {
 	if (deletedPDFs.length > 0) {
 		const deletedPDF = deletedPDFs[0]
 
-		const s3file = s3Client.file(deletedPDF.url)
-
-		await s3file.delete()
-
 		await db
 			.delete(embeddings)
 			.where(
@@ -709,6 +709,17 @@ app.delete('/:pdf_id', async (c) => {
 					eq(embeddings.resourceId, deletedPDF.id),
 				),
 			)
+
+		const deletedFiles = await db
+			.delete(upload)
+			.where(and(eq(upload.id, deletedPDF.uploadId)))
+			.returning()
+		if (deletedFiles.length > 0) {
+			const deletedFile = deletedFiles[0]
+			const s3file = s3Client.file(deletedFile.key)
+
+			await s3file.delete()
+		}
 	}
 
 	return c.json({ success: true }, 200)

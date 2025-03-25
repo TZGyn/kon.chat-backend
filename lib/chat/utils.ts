@@ -46,10 +46,10 @@ export const updateUserChatAndLimit = async ({
 	if (!loggedInUser) return
 
 	const existingChat = await db.query.chat.findFirst({
-		where: (chat, { eq, and }) =>
-			and(eq(chat.id, chatId), eq(chat.userId, loggedInUser.id)),
+		where: (chat, { eq, and }) => and(eq(chat.id, chatId)),
 	})
 
+	let newChat = false
 	if (!existingChat) {
 		const title = await generateTitleFromUserMessage({
 			message: userMessage,
@@ -61,49 +61,56 @@ export const updateUserChatAndLimit = async ({
 			userId: loggedInUser.id,
 			createdAt: Date.now(),
 		})
+
+		newChat = true
 	}
 
-	await db.insert(message).values({
-		...userMessage,
-		id: generateId(),
-		chatId: chatId,
-		promptTokens: 0,
-		completionTokens: 0,
-		totalTokens: 0,
-		createdAt: userMessageDate,
-	})
-
-	const responseMessagesWithoutIncompleteToolCalls =
-		sanitizeResponseMessages({
-			messages: messages,
-			reasoning,
+	if (
+		(existingChat && existingChat.userId === loggedInUser.id) ||
+		newChat
+	) {
+		await db.insert(message).values({
+			...userMessage,
+			id: generateId(),
+			chatId: chatId,
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			createdAt: userMessageDate,
 		})
 
-	const now = Date.now()
+		const responseMessagesWithoutIncompleteToolCalls =
+			sanitizeResponseMessages({
+				messages: messages,
+				reasoning,
+			})
 
-	await db.insert(message).values(
-		responseMessagesWithoutIncompleteToolCalls.map(
-			(message, index) => {
-				const messageId = generateId()
-				const date = now + index
+		const now = Date.now()
 
-				return {
-					id: messageId,
-					chatId: chatId,
-					role: message.role,
-					content: message.content,
-					model: provider.model,
-					provider: provider.name,
-					providerMetadata:
-						message.role === 'assistant'
-							? providerMetadata
-							: undefined,
-					...usage,
-					createdAt: date,
-				}
-			},
-		),
-	)
+		await db.insert(message).values(
+			responseMessagesWithoutIncompleteToolCalls.map(
+				(message, index) => {
+					const messageId = generateId()
+					const date = now + index
+
+					return {
+						id: messageId,
+						chatId: chatId,
+						role: message.role,
+						content: message.content,
+						model: provider.model,
+						provider: provider.name,
+						providerMetadata:
+							message.role === 'assistant'
+								? providerMetadata
+								: undefined,
+						...usage,
+						createdAt: date,
+					}
+				},
+			),
+		)
+	}
 
 	await updateUserRatelimit({
 		provider,

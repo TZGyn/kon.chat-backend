@@ -16,7 +16,7 @@ import {
 } from '$lib/auth/session'
 
 import { db } from '$lib/db'
-import { chat, message } from '$lib/db/schema'
+import { chat, message, upload } from '$lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
@@ -27,6 +27,8 @@ import { checkRatelimit, Limit } from '$lib/ratelimit'
 import { updateUserChatAndLimit } from '$lib/chat/utils'
 import { serialize } from 'hono/utils/cookie'
 import { activeTools, tools } from '$lib/ai/tools'
+import { nanoid } from '$lib/utils'
+import { s3Client } from '$lib/s3'
 
 const app = new Hono()
 
@@ -78,8 +80,11 @@ app.get('/:chat_id', async (c) => {
 	}
 
 	const chat = await db.query.chat.findFirst({
-		where: (chat, { eq, and }) =>
-			and(eq(chat.id, chatId), eq(chat.userId, user.id)),
+		where: (chat, { eq, and, or }) =>
+			and(
+				eq(chat.id, chatId),
+				or(eq(chat.userId, user.id), eq(chat.visibility, 'public')),
+			),
 		with: {
 			messages: {
 				columns: {
@@ -97,7 +102,15 @@ app.get('/:chat_id', async (c) => {
 		},
 	})
 
-	return c.json({ chat })
+	if (chat) {
+		const { userId: chatUserId, ...rest } = chat
+
+		return c.json({
+			chat: { ...rest, isOwner: user.id === chatUserId },
+		})
+	}
+
+	return c.json({ chat: null })
 })
 
 app.post(
@@ -384,5 +397,74 @@ app.delete('/:chat_id', async (c) => {
 
 	return c.json({ success: true })
 })
+
+app.post(
+	'/:chat_id/upload',
+	zValidator(
+		'form',
+		z.object({
+			file: z
+				.instanceof(File)
+				.refine((file) => file.size <= 5 * 1024 * 1024, {
+					message: 'File size should be less than 5MB',
+				})
+				// Update the file type based on the kind of files you want to accept
+				.refine(
+					(file) =>
+						[
+							'image/jpeg',
+							'image/png',
+							'application/pdf',
+							// 'text/csv',
+							// 'text/plain',
+						].includes(file.type),
+					{
+						message: 'File type not supported',
+					},
+				),
+		}),
+	),
+	async (c) => {
+		const token = getCookie(c, 'session') ?? null
+		const chatId = c.req.param('chat_id')
+
+		if (token === null) {
+			return c.json({ link: '' }, 401)
+		}
+
+		const { session, user } = await validateSessionToken(token)
+
+		if (!user) {
+			return c.json({ link: '' }, 401)
+		}
+
+		if (session !== null) {
+			setSessionTokenCookie(c, token, session.expiresAt)
+		} else {
+			deleteSessionTokenCookie(c)
+		}
+
+		const file = c.req.valid('form').file
+
+		const id = `${user.id}/chat/${chatId}/upload/${nanoid()}-${
+			file.name
+		}`
+		const s3file = s3Client.file(id)
+
+		await s3file.write(file)
+
+		const uploadId = nanoid()
+		await db.insert(upload).values({
+			id: uploadId,
+			key: id,
+			mimeType: file.type,
+			name: file.name,
+			size: file.size,
+			createdAt: Date.now(),
+		})
+
+		return c.json({ id: uploadId })
+	},
+)
 
 export default app

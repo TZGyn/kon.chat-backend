@@ -57,6 +57,13 @@
       "when": 1742668680669,
       "tag": "0007_gigantic_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1742869640103,
+      "tag": "0008_flat_tomorrow_man",
+      "breakpoints": true
     }
   ]
 }
