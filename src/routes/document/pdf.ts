@@ -151,6 +151,7 @@ app.post(
 		const uploadId = nanoid()
 		await db.insert(upload).values({
 			id: uploadId,
+			userId: user.id,
 			key: id,
 			mimeType: file.type,
 			name: file.name,

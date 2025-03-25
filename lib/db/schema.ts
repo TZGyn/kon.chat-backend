@@ -37,10 +37,16 @@ export const session = pgTable('session', {
 
 export const upload = pgTable('upload', (t) => ({
 	id: t.text('id').primaryKey(),
+	userId: text('user_id').notNull(),
 	key: t.text('key').notNull(),
 	name: t.text('name').notNull(),
 	size: t.bigint('size', { mode: 'number' }).notNull(),
 	mimeType: t.varchar('mime_type', { length: 255 }).notNull(),
+	visibility: t
+		.varchar('visibility', { length: 255 })
+		.$type<'private' | 'public'>()
+		.notNull()
+		.default('private'),
 	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 }))
 

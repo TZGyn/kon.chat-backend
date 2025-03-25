@@ -17,7 +17,7 @@ import {
 
 import { db } from '$lib/db'
 import { chat, message, upload } from '$lib/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
 import { redis } from '$lib/redis'
@@ -456,6 +456,7 @@ app.post(
 		const uploadId = nanoid()
 		await db.insert(upload).values({
 			id: uploadId,
+			userId: user.id,
 			key: id,
 			mimeType: file.type,
 			name: file.name,
@@ -464,6 +465,114 @@ app.post(
 		})
 
 		return c.json({ id: uploadId })
+	},
+)
+
+app.put(
+	'/:chat_id/change_visibility',
+	zValidator(
+		'json',
+		z.object({
+			visibility: z.enum(['private', 'public']),
+		}),
+	),
+	async (c) => {
+		const token = getCookie(c, 'session') ?? null
+
+		if (token === null) {
+			return c.json({ link: '' }, 401)
+		}
+
+		const { session, user } = await validateSessionToken(token)
+
+		if (!user) {
+			return c.json({ link: '' }, 401)
+		}
+
+		if (session !== null) {
+			setSessionTokenCookie(c, token, session.expiresAt)
+		} else {
+			deleteSessionTokenCookie(c)
+		}
+
+		const chat_id = c.req.param('chat_id')
+
+		const { visibility } = c.req.valid('json')
+
+		const existingChat = await db.query.chat.findFirst({
+			where: (chat, t) =>
+				t.and(t.eq(chat.id, chat_id), t.eq(chat.userId, user.id)),
+			with: {
+				messages: true,
+			},
+		})
+
+		if (existingChat) {
+			await db
+				.update(chat)
+				.set({
+					visibility: visibility,
+				})
+				.where(and(eq(chat.id, chat_id), eq(chat.userId, user.id)))
+
+			const attachments = existingChat.messages.flatMap((message) => {
+				let res = []
+				if (typeof message.content === 'string') {
+					return []
+				}
+				if (Array.isArray(message.content)) {
+					for (const content of message.content) {
+						if (content.type === 'text') {
+							continue
+						} else if (content.type === 'reasoning') {
+							continue
+						} else if (content.type === 'tool-call') {
+							continue
+						} else if (content.type === 'image') {
+							const url = content.image as string
+
+							if (
+								Bun.env.APP_URL &&
+								url.startsWith(Bun.env.APP_URL)
+							) {
+								const id = (content.image as string).split('/').pop()
+								if (!id) continue
+								res.push(id)
+							}
+
+							continue
+						} else if (content.type === 'file') {
+							const url = content.data as string
+
+							if (
+								Bun.env.APP_URL &&
+								url.startsWith(Bun.env.APP_URL)
+							) {
+								const id = (content.data as string).split('/').pop()
+
+								if (!id) continue
+								res.push(id)
+							}
+						}
+					}
+				}
+				return res
+			})
+
+			await db
+				.update(upload)
+				.set({
+					visibility: visibility,
+				})
+				.where(
+					and(
+						inArray(upload.id, attachments),
+						eq(upload.userId, user.id),
+					),
+				)
+		}
+
+		return c.json({ success: true }, 200)
 	},
 )
 
