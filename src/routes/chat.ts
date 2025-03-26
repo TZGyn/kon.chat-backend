@@ -487,13 +487,19 @@ app.post(
 		const chatId = c.req.param('chat_id')
 
 		if (token === null) {
-			return c.json({ link: '' }, 401)
+			return c.text('Unauthenticated', 401)
 		}
 
 		const { session, user } = await validateSessionToken(token)
 
 		if (!user) {
 			return c.json({ link: '' }, 401)
+		}
+		if (!['pro', 'basic'].includes(user.plan)) {
+			return c.text(
+				'You need to have basic/pro plan to use this feature',
+				400,
+			)
 		}
 
 		if (session !== null) {
