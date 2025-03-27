@@ -8,6 +8,7 @@ import { db } from '$lib/db'
 import { chat, message } from '$lib/db/schema'
 import { Provider } from '$lib/model'
 import { updateUserRatelimit } from '$lib/ratelimit'
+import { nanoid } from '$lib/utils'
 import {
 	CoreAssistantMessage,
 	CoreToolMessage,
@@ -27,6 +28,7 @@ export const updateUserChatAndLimit = async ({
 	providerMetadata,
 	usage,
 	mode,
+	response_id,
 }: {
 	token: string
 	chatId: string
@@ -38,6 +40,7 @@ export const updateUserChatAndLimit = async ({
 	providerMetadata: any | undefined
 	usage: LanguageModelUsage
 	mode: Tool
+	response_id: string
 }) => {
 	const { session, user: loggedInUser } = await validateSessionToken(
 		token,
@@ -71,6 +74,7 @@ export const updateUserChatAndLimit = async ({
 	) {
 		await db.insert(message).values({
 			...userMessage,
+			responseId: nanoid(),
 			id: generateId(),
 			chatId: chatId,
 			promptTokens: 0,
@@ -96,6 +100,7 @@ export const updateUserChatAndLimit = async ({
 					return {
 						id: messageId,
 						chatId: chatId,
+						responseId: response_id,
 						role: message.role,
 						content: message.content,
 						model: provider.model,

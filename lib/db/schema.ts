@@ -8,7 +8,7 @@ import {
 	vector,
 	index,
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
@@ -64,6 +64,9 @@ export const chat = pgTable('chat', {
 export const message = pgTable('message', {
 	id: text('id').primaryKey().notNull(),
 	chatId: text('chat_id').notNull(),
+	responseId: varchar('response_id')
+		.notNull()
+		.default(sql`md5(random()::text)`),
 	role: varchar('role').notNull(),
 	content: json('content').notNull(),
 	model: varchar('model'),

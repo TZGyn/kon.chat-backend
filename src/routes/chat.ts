@@ -92,6 +92,7 @@ app.get('/:chat_id', async (c) => {
 					role: true,
 					model: true,
 					id: true,
+					responseId: true,
 					createdAt: true,
 					chatId: true,
 					provider: true,
@@ -295,6 +296,11 @@ app.post(
 						\`\`\`
 
 						Do not generate tool call details to the user
+						It is recommended to generate some text, letting the user knows your thinking process before using a tool.
+						Thus providing better user experience, rather than immediately jump to using the tool and generate a conclusion
+
+						Common Order: Tool, Text
+						Better order you must follow: Text, Tool, Text
 
 						${additionalSystemPrompt[mode]}
 					`,
@@ -351,6 +357,7 @@ app.post(
 							userMessage,
 							userMessageDate,
 							mode,
+							response_id: response.id,
 						})
 					},
 				})
