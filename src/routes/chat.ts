@@ -1,4 +1,5 @@
 import {
+	CoreMessage,
 	createDataStreamResponse,
 	smoothStream,
 	streamText,
@@ -137,6 +138,13 @@ app.post(
 		const { messages, provider, searchGrounding, mode } =
 			c.req.valid('json')
 
+		if (searchGrounding && mode !== 'chat') {
+			return c.text(
+				'Google models does not support calling search grounding and tools at the same time',
+				400,
+			)
+		}
+
 		const {
 			error: ratelimitError,
 			limit,
@@ -234,25 +242,34 @@ app.post(
 				})
 
 				const additionalSystemPrompt = {
-					chat: `You are not given a web search ability, if user ask you to do so, let the user know there is ability is limit`,
+					chat: `
+						YOU ARE NOT ALLOWED TO CALL ANY TOOLS, DONT USE PREVIOUS CHATS TO FAKE CALL TOOLS
+						ONLY TREAT THIS AS TEXT TO TEXT CHAT
+					`,
 					x_search: `
 						You have been given an ability to search X(formerly Twitter)'s posts
-						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						'You MUST run the tool first exactly once'
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,
 					web_search: `
 						You have been given a web search ability, 
-						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						'You MUST run the tool first exactly once'
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,
 					academic_search: `
 						You have been given an ability to search academic papers
-						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						'You MUST run the tool first exactly once'
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,
 					web_reader: `
 						You have been given an ability to fetch url as markdown 
-						'You MUST run the tool first exactly once' before composing your response. **This is non-negotiable.**
+						'You MUST run the tool first exactly once'
+						DO NOT ASK THE USER FOR CONFIRMATION!
+					`,
+					image: `
+						You have been given an ability to generate image 
+						'You MUST run the tool first exactly once'
+						USE 1:1 aspect ratio if not specified and 1 image as default unless specified
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,
 				}
@@ -261,9 +278,7 @@ app.post(
 					model: model,
 					messages: coreMessages,
 					system: `
-						You are a chat assistant ${
-							searchGrounding && 'with search grounding ability'
-						}
+						You are a chat assistant
 
 						Today's Date: ${new Date().toLocaleDateString('en-US', {
 							year: 'numeric',

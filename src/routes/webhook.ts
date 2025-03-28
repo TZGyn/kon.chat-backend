@@ -42,7 +42,6 @@ app.post(
 			}
 		},
 		onOrderCreated: async (payload) => {
-			console.log('hit')
 			if (
 				payload.data.billingReason === 'subscription_cycle' ||
 				payload.data.billingReason === 'subscription_create'
@@ -72,8 +71,8 @@ app.post(
 									: 'basic',
 							credits:
 								priceId === Bun.env.POLAR_PRO_PLAN_PRICE_ID
-									? 3000
-									: 1000,
+									? 150000
+									: 50000,
 						})
 						.where(eq(user.polarCustomerId, customerId))
 

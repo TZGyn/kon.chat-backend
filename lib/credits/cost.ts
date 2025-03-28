@@ -6,6 +6,7 @@ import {
 	standardModels,
 } from '$lib/model'
 
+// 100 credits = 1 cent
 export const costTable: {
 	[Key in
 		| (typeof freeModels)[number]
@@ -14,21 +15,22 @@ export const costTable: {
 		| Tool]: number
 } = {
 	'gemini-2.0-flash-001': 0,
-	'claude-3-5-sonnet-latest': 15,
-	'claude-3-7-sonnet-20250219': 15,
-	'deepseek-r1-distill-llama-70b': 2,
-	'gpt-4o': 5,
-	'gpt-4o-mini': 1,
-	'grok-2-1212': 2,
-	'grok-2-vision-1212': 2,
-	'llama-3.3-70b-versatile': 1,
-	'o3-mini': 2,
-	'qwen-qwq-32b': 2,
-	academic_search: 5,
+	'claude-3-5-sonnet-latest': 500,
+	'claude-3-7-sonnet-20250219': 500,
+	'deepseek-r1-distill-llama-70b': 50,
+	'gpt-4o': 100,
+	'gpt-4o-mini': 40,
+	'grok-2-1212': 40,
+	'grok-2-vision-1212': 40,
+	'llama-3.3-70b-versatile': 30,
+	'o3-mini': 40,
+	'qwen-qwq-32b': 30,
+	academic_search: 200,
 	chat: 0,
-	web_reader: 5,
-	web_search: 5,
-	x_search: 5,
+	web_reader: 200,
+	web_search: 200,
+	x_search: 200,
+	// image: 5,
 } as const
 
 export const calculateCost = ({

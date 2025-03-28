@@ -94,10 +94,6 @@ export const updateUserRatelimit = async ({
 	provider: Provider
 	mode: Tool
 }) => {
-	if (provider.model === 'gemini-2.0-flash-001') {
-		return
-	}
-
 	const cost = costTable[provider.model] + costTable[mode]
 	let credits = loggedInUser.credits
 	credits -= cost

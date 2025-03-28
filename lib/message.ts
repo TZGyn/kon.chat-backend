@@ -2,7 +2,6 @@ import { convertToCoreMessages } from 'ai'
 import { getMostRecentUserMessage } from './utils'
 import { modelSchema } from './model'
 import { z } from 'zod'
-import { inspect } from 'util'
 
 export const processMessages = ({
 	messages,
