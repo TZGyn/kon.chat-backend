@@ -1,8 +1,14 @@
-import { DataStreamWriter, tool } from 'ai'
+import {
+	DataStreamWriter,
+	experimental_generateImage as generateImage,
+	tool,
+} from 'ai'
 import { z } from 'zod'
 import { exa } from './exa'
 import { tavily } from './tavily'
 import { jinaRead } from './jina'
+import { vertex } from './model'
+import { validateSessionToken } from '$lib/auth/session'
 
 type XResult = {
 	id: string
@@ -154,7 +160,7 @@ export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
 		}),
 		web_search: tool({
 			description:
-				'Search the web for information with multiple queries, max results and search depth.',
+				'Search the web for information with multiple queries, max results and search depth. Note: This is different from google search grounding, so dont call this if youre using google search grounding',
 			parameters: z.object({
 				queries: z.array(
 					z
@@ -374,6 +380,64 @@ export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
 				}
 			},
 		}),
+		// generate_image: tool({
+		// 	description: 'generate an image',
+		// 	parameters: z.object({
+		// 		prompt: z.string().describe('prompt to generate the image'),
+		// 		negative_prompt: z
+		// 			.string()
+		// 			.describe('prompt to tell the model not to generate'),
+		// 		count: z.number().describe('number of image (max 4)'),
+		// 		aspect_ratio: z
+		// 			.string()
+		// 			.describe(
+		// 				'aspect ratio, one of these: 1:1, 3:4, 4:3, 9:16, 16:9',
+		// 			),
+		// 	}),
+		// 	execute: async ({
+		// 		count,
+		// 		prompt,
+		// 		aspect_ratio,
+		// 		negative_prompt,
+		// 	}) => {
+		// 		const { session, user: loggedInUser } =
+		// 			await validateSessionToken(token)
+
+		// 		if (!loggedInUser) return
+
+		// 		const getAspectRatio = (aspect_ratio: string) => {
+		// 			const ratios = [
+		// 				'1:1',
+		// 				'3:4',
+		// 				'4:3',
+		// 				'9:16',
+		// 				'16:9',
+		// 			] as const
+		// 			if (ratios.includes(aspect_ratio as any)) {
+		// 				return aspect_ratio as (typeof ratios)[number]
+		// 			} else {
+		// 				return '1:1'
+		// 			}
+		// 		}
+		// 		try {
+		// 			const result = await generateImage({
+		// 				model: vertex.image('imagen-3.0-generate-001', {
+		// 					maxImagesPerCall: 4,
+		// 				}),
+		// 				prompt: prompt,
+		// 				aspectRatio: getAspectRatio(aspect_ratio),
+		// 				n: count > 4 ? 4 : count,
+		// 				providerOptions: {
+		// 					vertex: { negativePrompt: negative_prompt },
+		// 				},
+		// 			})
+
+		// 			return { images: result.images }
+		// 		} catch (error) {
+		// 			return { images: [] }
+		// 		}
+		// 	},
+		// }),
 	}
 
 	const toolMap = {
@@ -382,19 +446,20 @@ export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
 		web_search: { web_search: toolList.web_search },
 		academic_search: { academic_search: toolList.academic_search },
 		web_reader: { web_reader: toolList.web_reader },
-	}
+	} as const
 
 	return toolMap[mode]
 }
 
 export const activeTools = (
-	mode: 'x_search' | 'chat' | 'web_search' | 'web_reader',
+	mode: 'x_search' | 'chat' | 'web_search' | 'web_reader' | 'image',
 ) => {
 	const toolMap = {
 		x_search: ['x_search'],
 		chat: [],
 		web_search: ['web_search'],
 		web_reader: ['web_reader'],
+		image: ['generate_image'],
 	} as const
 	return toolMap[mode]
 }

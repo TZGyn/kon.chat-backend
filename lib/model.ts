@@ -94,6 +94,12 @@ export const getModel = ({
 		model = google(provider.model, {
 			useSearchGrounding: searchGrounding,
 		})
+		// model = google('gemini-2.0-flash-exp', {
+		// 	useSearchGrounding: searchGrounding,
+		// })
+		// providerOptions = {
+		// 	google: { responseModalities: ['TEXT', 'IMAGE'] },
+		// }
 	} else if (provider.name === 'openai') {
 		model = openai(provider.model)
 		if (provider.model === 'o3-mini') {

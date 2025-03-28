@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createGroq } from '@ai-sdk/groq'
 import { createXai } from '@ai-sdk/xai'
 import { GoogleAuth, GoogleAuthOptions } from 'google-auth-library'
+import { createVertex } from '@ai-sdk/google-vertex'
 
 export const openai = createOpenAI({
 	apiKey: Bun.env.OPENAI_API_KEY,
@@ -46,3 +47,19 @@ export async function generateAuthToken(options?: GoogleAuthOptions) {
 	const token = await client.getAccessToken()
 	return token?.token || null
 }
+
+export const vertex = createVertex({
+	project: Bun.env.GEMINI_PROJECT_ID!, // optional
+	location: 'us-west1',
+	googleAuthOptions: {
+		credentials: {
+			private_key:
+				Bun.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
+					/\\n/g,
+					'\n',
+				) ?? '',
+			client_email: Bun.env.GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL,
+		},
+	},
+	// baseURL: undefined,
+})
