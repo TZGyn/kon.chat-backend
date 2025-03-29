@@ -237,7 +237,7 @@ app.get('/login/google/callback', async (c) => {
 				email: email,
 				plan: 'free',
 				credits: 0,
-				purchasedCredits: 100,
+				purchasedCredits: 5000,
 				createdAt: Date.now(),
 			})
 			.returning()
@@ -352,7 +352,7 @@ app.get('/login/github/callback', async (c) => {
 				email: email,
 				plan: 'free',
 				credits: 0,
-				purchasedCredits: 100,
+				purchasedCredits: 5000,
 				createdAt: Date.now(),
 			})
 			.returning()
