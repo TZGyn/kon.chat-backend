@@ -68,11 +68,72 @@ app.get('/:chat_id', async (c) => {
 	const token = getCookie(c, 'session') ?? null
 	const chatId = c.req.param('chat_id')
 
-	if (token === null) return c.json({ chat: null })
+	if (token === null) {
+		const chat = await db.query.chat.findFirst({
+			where: (chat, { eq, and, or }) =>
+				and(eq(chat.id, chatId), eq(chat.visibility, 'public')),
+			with: {
+				messages: {
+					columns: {
+						content: true,
+						role: true,
+						model: true,
+						id: true,
+						responseId: true,
+						createdAt: true,
+						chatId: true,
+						provider: true,
+						providerMetadata: true,
+					},
+					orderBy: (message, { asc }) => [asc(message.createdAt)],
+				},
+			},
+		})
+
+		if (chat) {
+			const { userId: chatUserId, ...rest } = chat
+
+			return c.json({
+				chat: { ...rest, isOwner: false },
+			})
+		}
+
+		return c.json({ chat: null })
+	}
 
 	const { session, user } = await validateSessionToken(token)
 
-	if (!user) return c.json({ chat: null })
+	if (!user) {
+		const chat = await db.query.chat.findFirst({
+			where: (chat, { eq, and, or }) =>
+				and(eq(chat.id, chatId), eq(chat.visibility, 'public')),
+			with: {
+				messages: {
+					columns: {
+						content: true,
+						role: true,
+						model: true,
+						id: true,
+						responseId: true,
+						createdAt: true,
+						chatId: true,
+						provider: true,
+						providerMetadata: true,
+					},
+					orderBy: (message, { asc }) => [asc(message.createdAt)],
+				},
+			},
+		})
+
+		if (chat) {
+			const { userId: chatUserId, ...rest } = chat
+
+			return c.json({
+				chat: { ...rest, isOwner: false },
+			})
+		}
+		return c.json({ chat: null })
+	}
 
 	if (session !== null) {
 		setSessionTokenCookie(c, token, session.expiresAt)
@@ -530,6 +591,13 @@ app.post(
 			deleteSessionTokenCookie(c)
 		}
 
+		const existingChat = await db.query.chat.findFirst({
+			where: (chat, t) =>
+				t.and(t.eq(chat.id, chatId), t.eq(chat.userId, user.id)),
+		})
+
+		if (!existingChat) return c.text('Unauthenticated Upload', 401)
+
 		const file = c.req.valid('form').file
 
 		const id = `${user.id}/chat/${chatId}/upload/${nanoid()}-${
@@ -547,6 +615,7 @@ app.post(
 			mimeType: file.type,
 			name: file.name,
 			size: file.size,
+			visibility: existingChat.visibility,
 			createdAt: Date.now(),
 		})
 
@@ -661,5 +730,214 @@ app.put(
 		return c.json({ success: true }, 200)
 	},
 )
+
+app.post('/:chat_id/copy', async (c) => {
+	const token = getCookie(c, 'session') ?? null
+
+	if (token === null) {
+		return c.json({ id: '' }, 401)
+	}
+
+	const { session, user } = await validateSessionToken(token)
+
+	if (!user) {
+		return c.json({ id: '' }, 401)
+	}
+
+	if (session !== null) {
+		setSessionTokenCookie(c, token, session.expiresAt)
+	} else {
+		deleteSessionTokenCookie(c)
+	}
+
+	const chat_id = c.req.param('chat_id')
+
+	const existingChat = await db.query.chat.findFirst({
+		where: (chat, t) =>
+			t.and(
+				t.eq(chat.id, chat_id),
+				t.or(
+					t.eq(chat.userId, user.id),
+					t.eq(chat.visibility, 'public'),
+				),
+			),
+		with: {
+			messages: true,
+		},
+	})
+
+	if (!existingChat) return c.json({ id: '' }, 404)
+
+	const attachments = existingChat.messages.flatMap((message) => {
+		let res = []
+		if (typeof message.content === 'string') {
+			return []
+		}
+		if (Array.isArray(message.content)) {
+			for (const content of message.content) {
+				if (content.type === 'text') {
+					continue
+				} else if (content.type === 'reasoning') {
+					continue
+				} else if (content.type === 'tool-call') {
+					continue
+				} else if (content.type === 'image') {
+					const url = content.image as string
+
+					if (Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL)) {
+						const id = (content.image as string).split('/').pop()
+						if (!id) continue
+						res.push(id)
+					}
+
+					continue
+				} else if (content.type === 'file') {
+					const url = content.data as string
+
+					if (Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL)) {
+						const id = (content.data as string).split('/').pop()
+
+						if (!id) continue
+						res.push(id)
+					}
+				}
+			}
+		}
+		return res
+	})
+
+	const newChatId = nanoid()
+
+	await db.insert(chat).values({
+		id: newChatId,
+		title: existingChat.title,
+		userId: user.id,
+		visibility: 'private',
+		createdAt: Date.now(),
+	})
+
+	const uploads = await db.query.upload.findMany({
+		where: (upload, t) => t.and(t.inArray(upload.id, attachments)),
+	})
+
+	const uploadsData = await Promise.all(
+		uploads.map(async (upload) => {
+			const existing = s3Client.file(upload.key)
+
+			const copyId = `${
+				user.id
+			}/chat/${newChatId}/upload/${nanoid()}-${upload.name}`
+
+			const uploadId =
+				nanoid() + `.${upload.mimeType.split('/').pop()}`
+			const copy = s3Client.file(copyId)
+
+			await copy.write(existing)
+			return {
+				originalId: upload.id,
+				id: uploadId,
+				name: upload.name,
+				createdAt: Date.now(),
+				userId: user.id,
+				key: copyId,
+				size: upload.size,
+				mimeType: upload.mimeType,
+				visibility: 'private' as const,
+			}
+		}),
+	)
+
+	if (existingChat.messages.length > 0) {
+		const now = Date.now()
+		await db.insert(message).values(
+			existingChat.messages.map((message, index) => {
+				const replaceAttachment = (content: unknown) => {
+					let res = []
+					if (typeof message.content === 'string') {
+						return message.content
+					}
+					if (Array.isArray(message.content)) {
+						for (const content of message.content) {
+							if (content.type === 'text') {
+								res.push(content)
+							} else if (content.type === 'reasoning') {
+								res.push(content)
+							} else if (content.type === 'tool-call') {
+								res.push(content)
+							} else if (content.type === 'image') {
+								const url = content.image as string
+
+								if (
+									Bun.env.APP_URL &&
+									url.startsWith(Bun.env.APP_URL)
+								) {
+									const id = (content.image as string)
+										.split('/')
+										.pop()
+									if (!id) continue
+									const upload = uploadsData.find(
+										(data) => data.originalId === id,
+									)
+									if (upload) {
+										res.push({
+											type: 'image',
+											image:
+												Bun.env.APP_URL + '/file-upload/' + upload.id,
+										})
+									} else {
+										res.push(content)
+									}
+									continue
+								}
+
+								continue
+							} else if (content.type === 'file') {
+								const url = content.data as string
+
+								if (
+									Bun.env.APP_URL &&
+									url.startsWith(Bun.env.APP_URL)
+								) {
+									const id = (content.data as string).split('/').pop()
+
+									if (!id) continue
+
+									const upload = uploadsData.find(
+										(data) => data.originalId === id,
+									)
+									if (upload) {
+										res.push({
+											type: 'file',
+											data:
+												Bun.env.APP_URL + '/file-upload/' + upload.id,
+											mimeType: upload.mimeType,
+										})
+									} else {
+										res.push(content)
+									}
+									continue
+								}
+							}
+						}
+					}
+					return res
+				}
+				return {
+					...message,
+					id: nanoid(),
+					chatId: newChatId,
+					createdAt: now + index,
+					content: replaceAttachment(message.content),
+				}
+			}),
+		)
+	}
+
+	if (uploadsData.length > 0) {
+		await db.insert(upload).values([...uploadsData])
+	}
+
+	return c.json({ id: newChatId }, 200)
+})
 
 export default app
