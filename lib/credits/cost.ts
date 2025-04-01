@@ -15,6 +15,7 @@ export const costTable: {
 		| Tool]: number
 } = {
 	'gemini-2.0-flash-001': 0,
+	'gemini-2.5-pro-exp-03-25': 0,
 	'claude-3-5-sonnet-latest': 500,
 	'claude-3-7-sonnet-20250219': 500,
 	'deepseek-r1-distill-llama-70b': 50,

@@ -1,12 +1,17 @@
 import { z } from 'zod'
-import { anthropic, google, groq, openai, xai } from '$lib/ai/model'
+import {
+	anthropic,
+	google,
+	groq,
+	openai,
+	vertex,
+	xai,
+} from '$lib/ai/model'
 import {
 	extractReasoningMiddleware,
 	LanguageModelV1,
 	wrapLanguageModel,
 } from 'ai'
-import { Limit } from '$lib/ratelimit'
-import { costTable } from './credits/cost'
 
 export const modelSchema = z
 	.union([
@@ -16,7 +21,10 @@ export const modelSchema = z
 		}),
 		z.object({
 			name: z.literal('google'),
-			model: z.enum(['gemini-2.0-flash-001']),
+			model: z.enum([
+				'gemini-2.0-flash-001',
+				'gemini-2.5-pro-exp-03-25',
+			]),
 		}),
 		z.object({
 			name: z.literal('groq'),
@@ -53,7 +61,10 @@ const getContextSize = (provider: Provider) => {
 
 export type Provider = z.infer<typeof modelSchema>
 
-export const freeModels = ['gemini-2.0-flash-001'] as const
+export const freeModels = [
+	'gemini-2.0-flash-001',
+	'gemini-2.5-pro-exp-03-25',
+] as const
 
 export const standardModels = [
 	'gpt-4o',
@@ -94,12 +105,6 @@ export const getModel = ({
 		model = google(provider.model, {
 			useSearchGrounding: searchGrounding,
 		})
-		// model = google('gemini-2.0-flash-exp', {
-		// 	useSearchGrounding: searchGrounding,
-		// })
-		// providerOptions = {
-		// 	google: { responseModalities: ['TEXT', 'IMAGE'] },
-		// }
 	} else if (provider.name === 'openai') {
 		model = openai(provider.model)
 		if (provider.model === 'o3-mini') {
