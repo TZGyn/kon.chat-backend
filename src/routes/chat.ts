@@ -64,6 +64,85 @@ app.get('/', async (c) => {
 	return c.json({ chats })
 })
 
+app.post(
+	'/branch',
+	zValidator(
+		'json',
+		z.object({
+			chat_id: z.string(),
+			new_chat_id: z.string(),
+			at: z.number(),
+		}),
+	),
+	async (c) => {
+		const token = getCookie(c, 'session') ?? null
+		const { at, chat_id, new_chat_id } = c.req.valid('json')
+
+		if (token === null) {
+			return c.text('You must be logged in', 401)
+		}
+
+		const { session, user } = await validateSessionToken(token)
+
+		if (!user) {
+			return c.text('You must be logged in', 401)
+		}
+
+		if (session !== null) {
+			setSessionTokenCookie(c, token, session.expiresAt)
+		} else {
+			deleteSessionTokenCookie(c)
+		}
+
+		const existingChat = await db.query.chat.findFirst({
+			where: (chat, { eq, and, or }) =>
+				and(
+					eq(chat.id, chat_id),
+					or(eq(chat.userId, user.id), eq(chat.visibility, 'public')),
+				),
+			with: {
+				messages: {
+					orderBy: (message, { asc }) => [asc(message.createdAt)],
+				},
+			},
+		})
+
+		if (!existingChat) {
+			return c.text('No chat found', 401)
+		}
+
+		const clash = await db.query.chat.findFirst({
+			where: (chat, t) => t.eq(chat.id, new_chat_id),
+		})
+
+		if (clash) {
+			return c.text('New chat already exist', 400)
+		}
+
+		await db.insert(chat).values({
+			id: new_chat_id,
+			title: existingChat.title + ' (branch)',
+			userId: user.id,
+			visibility: 'private',
+			createdAt: Date.now(),
+		})
+
+		const now = Date.now()
+		await db.insert(message).values(
+			existingChat.messages
+				.slice(0, at + 1)
+				.map((message, index) => ({
+					...message,
+					chatId: new_chat_id,
+					id: nanoid(),
+					createdAt: now + index,
+				})),
+		)
+
+		return c.json({ success: true })
+	},
+)
+
 app.get('/:chat_id', async (c) => {
 	const token = getCookie(c, 'session') ?? null
 	const chatId = c.req.param('chat_id')
