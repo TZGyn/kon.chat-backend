@@ -119,6 +119,52 @@ app.post(
 			return c.text('New chat already exist', 400)
 		}
 
+		const attachments = existingChat.messages
+			.slice(0, at + 1)
+			.flatMap((message) => {
+				let res = []
+				if (typeof message.content === 'string') {
+					return []
+				}
+				if (Array.isArray(message.content)) {
+					for (const content of message.content) {
+						if (content.type === 'text') {
+							continue
+						} else if (content.type === 'reasoning') {
+							continue
+						} else if (content.type === 'tool-call') {
+							continue
+						} else if (content.type === 'image') {
+							const url = content.image as string
+
+							if (
+								Bun.env.APP_URL &&
+								url.startsWith(Bun.env.APP_URL)
+							) {
+								const id = (content.image as string).split('/').pop()
+								if (!id) continue
+								res.push(id)
+							}
+
+							continue
+						} else if (content.type === 'file') {
+							const url = content.data as string
+
+							if (
+								Bun.env.APP_URL &&
+								url.startsWith(Bun.env.APP_URL)
+							) {
+								const id = (content.data as string).split('/').pop()
+
+								if (!id) continue
+								res.push(id)
+							}
+						}
+					}
+				}
+				return res
+			})
+
 		await db.insert(chat).values({
 			id: new_chat_id,
 			title: existingChat.title + ' (branch)',
@@ -127,17 +173,134 @@ app.post(
 			createdAt: Date.now(),
 		})
 
-		const now = Date.now()
-		await db.insert(message).values(
-			existingChat.messages
-				.slice(0, at + 1)
-				.map((message, index) => ({
-					...message,
-					chatId: new_chat_id,
-					id: nanoid(),
-					createdAt: now + index,
-				})),
+		const uploads = await db.query.upload.findMany({
+			where: (upload, t) => t.and(t.inArray(upload.id, attachments)),
+		})
+
+		const uploadsData = await Promise.all(
+			uploads.map(async (upload) => {
+				const existing = s3Client.file(upload.key)
+
+				const copyId = `${
+					user.id
+				}/chat/${new_chat_id}/upload/${nanoid()}-${upload.name}`
+
+				const uploadId =
+					nanoid() + `.${upload.mimeType.split('/').pop()}`
+				const copy = s3Client.file(copyId)
+
+				await copy.write(existing)
+				return {
+					originalId: upload.id,
+					id: uploadId,
+					name: upload.name,
+					createdAt: Date.now(),
+					userId: user.id,
+					key: copyId,
+					size: upload.size,
+					mimeType: upload.mimeType,
+					visibility: 'private' as const,
+				}
+			}),
 		)
+
+		if (existingChat.messages.length > 0) {
+			const now = Date.now()
+			await db.insert(message).values(
+				existingChat.messages
+					.slice(0, at + 1)
+					.map((message, index) => {
+						const replaceAttachment = (content: unknown) => {
+							let res = []
+							if (typeof message.content === 'string') {
+								return message.content
+							}
+							if (Array.isArray(message.content)) {
+								for (const content of message.content) {
+									if (content.type === 'text') {
+										res.push(content)
+									} else if (content.type === 'reasoning') {
+										res.push(content)
+									} else if (content.type === 'tool-call') {
+										res.push(content)
+									} else if (content.type === 'image') {
+										const url = content.image as string
+
+										if (
+											Bun.env.APP_URL &&
+											url.startsWith(Bun.env.APP_URL)
+										) {
+											const id = (content.image as string)
+												.split('/')
+												.pop()
+											if (!id) continue
+											const upload = uploadsData.find(
+												(data) => data.originalId === id,
+											)
+											if (upload) {
+												res.push({
+													type: 'image',
+													image:
+														Bun.env.APP_URL +
+														'/file-upload/' +
+														upload.id,
+												})
+											} else {
+												res.push(content)
+											}
+											continue
+										}
+
+										continue
+									} else if (content.type === 'file') {
+										const url = content.data as string
+
+										if (
+											Bun.env.APP_URL &&
+											url.startsWith(Bun.env.APP_URL)
+										) {
+											const id = (content.data as string)
+												.split('/')
+												.pop()
+
+											if (!id) continue
+
+											const upload = uploadsData.find(
+												(data) => data.originalId === id,
+											)
+											if (upload) {
+												res.push({
+													type: 'file',
+													data:
+														Bun.env.APP_URL +
+														'/file-upload/' +
+														upload.id,
+													mimeType: upload.mimeType,
+												})
+											} else {
+												res.push(content)
+											}
+											continue
+										}
+									}
+								}
+							}
+							return res
+						}
+						return {
+							...message,
+							id: nanoid(),
+							chatId: new_chat_id,
+							createdAt: now + index,
+							content: replaceAttachment(message.content),
+						}
+					}),
+			)
+		}
+
+		if (uploadsData.length > 0) {
+			await db.insert(upload).values([...uploadsData])
+		}
 
 		return c.json({ success: true })
 	},
