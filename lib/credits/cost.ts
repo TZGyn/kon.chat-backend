@@ -26,6 +26,7 @@ export const costTable: {
 	'llama-3.3-70b-versatile': 30,
 	'o3-mini': 40,
 	'qwen-qwq-32b': 30,
+	'mistral-small-latest': 30,
 	academic_search: 200,
 	chat: 0,
 	web_reader: 200,

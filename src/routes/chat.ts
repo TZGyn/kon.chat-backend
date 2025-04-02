@@ -614,6 +614,11 @@ app.post(
 						\`\`\`
 						IF BLOCK
 						\`\`\`
+						You must put the programming language for codeblock so frontend can make correct syntax highlighting
+						eg:
+						\`\`\`javascript
+						javascript code
+						\`\`\`
 
 						Do not generate tool call details to the user
 						It is recommended to generate some text, letting the user knows your thinking process before using a tool.

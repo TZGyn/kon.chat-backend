@@ -5,6 +5,7 @@ import { createGroq } from '@ai-sdk/groq'
 import { createXai } from '@ai-sdk/xai'
 import { GoogleAuth, GoogleAuthOptions } from 'google-auth-library'
 import { createVertex } from '@ai-sdk/google-vertex'
+import { createMistral } from '@ai-sdk/mistral'
 
 export const openai = createOpenAI({
 	apiKey: Bun.env.OPENAI_API_KEY,
@@ -25,6 +26,10 @@ export const groq = createGroq({
 
 export const xai = createXai({
 	apiKey: Bun.env.XAI_API_KEY,
+})
+
+export const mistral = createMistral({
+	apiKey: Bun.env.MISTRAL_API_KEY,
 })
 
 let authInstance: GoogleAuth | null = null

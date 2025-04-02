@@ -3,6 +3,7 @@ import {
 	anthropic,
 	google,
 	groq,
+	mistral,
 	openai,
 	vertex,
 	xai,
@@ -45,6 +46,10 @@ export const modelSchema = z
 			name: z.literal('xai'),
 			model: z.enum(['grok-2-1212', 'grok-2-vision-1212']),
 		}),
+		z.object({
+			name: z.literal('mistral'),
+			model: z.enum(['mistral-small-latest']),
+		}),
 	])
 	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
 
@@ -75,6 +80,7 @@ export const standardModels = [
 	'grok-2-1212',
 	'grok-2-vision-1212',
 	'qwen-qwq-32b',
+	'mistral-small-latest',
 ] as const
 
 export const premiumModels = [
@@ -134,6 +140,8 @@ export const getModel = ({
 		}
 	} else if (provider.name === 'xai') {
 		model = xai(provider.model)
+	} else if (provider.name === 'mistral') {
+		model = mistral(provider.model)
 	} else {
 		return {
 			error: 'Invalid Model',
