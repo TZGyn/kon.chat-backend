@@ -56,6 +56,8 @@ app.get('/', async (c) => {
 		columns: {
 			id: true,
 			title: true,
+			createdAt: true,
+			updatedAt: true,
 		},
 		where: (chat, { eq }) => eq(chat.userId, user.id),
 		orderBy: (chat, { desc }) => [desc(chat.createdAt)],

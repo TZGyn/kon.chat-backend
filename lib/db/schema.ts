@@ -59,6 +59,9 @@ export const chat = pgTable('chat', {
 		.notNull()
 		.default('private'),
 	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+	updatedAt: bigint('updated_at', { mode: 'number' })
+		.notNull()
+		.default(0),
 })
 
 export const message = pgTable('message', {

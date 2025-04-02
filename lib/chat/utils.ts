@@ -16,6 +16,7 @@ import {
 	generateId,
 	LanguageModelUsage,
 } from 'ai'
+import { eq } from 'drizzle-orm'
 
 export const updateUserChatAndLimit = async ({
 	token,
@@ -63,6 +64,7 @@ export const updateUserChatAndLimit = async ({
 			title: title,
 			userId: loggedInUser.id,
 			createdAt: Date.now(),
+			updatedAt: Date.now(),
 		})
 
 		newChat = true
@@ -72,6 +74,13 @@ export const updateUserChatAndLimit = async ({
 		(existingChat && existingChat.userId === loggedInUser.id) ||
 		newChat
 	) {
+		if (!newChat) {
+			await db
+				.update(chat)
+				.set({ updatedAt: Date.now() })
+				.where(eq(chat.id, existingChat!.id))
+		}
+
 		await db.insert(message).values({
 			...userMessage,
 			responseId: nanoid(),
