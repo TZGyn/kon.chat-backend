@@ -72,6 +72,10 @@ app.post(
 								{ type: 'text', text: prompt },
 								{
 									type: 'text',
+									text: 'Do not return the html in codeblock, no triple tilde, only the html content',
+								},
+								{
+									type: 'text',
 									text: `Current HTML: ${currentHtml}`,
 								},
 								...fileParts,
