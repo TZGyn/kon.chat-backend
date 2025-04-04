@@ -117,8 +117,8 @@ app.post(
 						console.log('Error', error)
 					},
 					experimental_transform: smoothStream({
-						delayInMs: 20, // optional: defaults to 10ms
-						chunking: 'word', // optional: defaults to 'word'
+						delayInMs: 10, // optional: defaults to 10ms
+						chunking: 'line', // optional: defaults to 'word'
 					}),
 					onFinish: async ({
 						response,
