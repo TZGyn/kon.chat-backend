@@ -39,7 +39,8 @@ app.post(
 					{
 						message: 'File type not supported',
 					},
-				),
+				)
+				.optional(),
 		}),
 	),
 	async (c) => {
@@ -48,7 +49,7 @@ app.post(
 		return createDataStreamResponse({
 			execute: async (dataStream) => {
 				const fileParts = await Promise.all(
-					[file].map(async (file) => {
+					(file ? [file] : []).map(async (file) => {
 						if (file.type === 'application/pdf') {
 							return {
 								type: 'file',
