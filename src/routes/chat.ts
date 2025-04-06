@@ -113,8 +113,6 @@ app.get('/sync', async (c) => {
 		orderBy: (chat, { desc }) => [desc(chat.createdAt)],
 	})
 
-	console.log(chats)
-
 	return c.json({
 		chats: chats.map((chat) => {
 			const { userId: chatUserId, ...rest } = chat
