@@ -66,6 +66,63 @@ app.get('/', async (c) => {
 	return c.json({ chats })
 })
 
+app.get('/sync', async (c) => {
+	const token = getCookie(c, 'session') ?? null
+
+	if (token === null) {
+		return c.json({ chats: [] })
+	}
+
+	const { session, user } = await validateSessionToken(token)
+
+	if (!user) {
+		return c.json({ chats: [] })
+	}
+
+	if (session !== null) {
+		setSessionTokenCookie(c, token, session.expiresAt)
+	} else {
+		deleteSessionTokenCookie(c)
+	}
+
+	const chats = await db.query.chat.findMany({
+		columns: {
+			id: true,
+			userId: true,
+			title: true,
+			createdAt: true,
+			updatedAt: true,
+		},
+		with: {
+			messages: {
+				columns: {
+					content: true,
+					role: true,
+					model: true,
+					id: true,
+					responseId: true,
+					createdAt: true,
+					chatId: true,
+					provider: true,
+					providerMetadata: true,
+				},
+				orderBy: (message, { asc }) => [asc(message.createdAt)],
+			},
+		},
+		where: (chat, { eq }) => eq(chat.userId, user.id),
+		orderBy: (chat, { desc }) => [desc(chat.createdAt)],
+	})
+
+	console.log(chats)
+
+	return c.json({
+		chats: chats.map((chat) => {
+			const { userId: chatUserId, ...rest } = chat
+			return { ...rest, isOwner: user.id === chatUserId }
+		}),
+	})
+})
+
 app.post(
 	'/branch',
 	zValidator(
