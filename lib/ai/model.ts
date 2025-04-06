@@ -32,6 +32,15 @@ export const mistral = createMistral({
 	apiKey: Bun.env.MISTRAL_API_KEY,
 })
 
+export const openRouter = createOpenAI({
+	baseURL: 'https://openrouter.ai/api/v1',
+	apiKey: Bun.env.OPENROUTER_API_KEY,
+	headers: {
+		'HTTP-Referer': 'https://kon.chat', // Optional. Site URL for rankings on openrouter.ai.
+		'X-Title': 'kon.chat', // Optional. Site title for rankings on openrouter.ai.
+	},
+})
+
 let authInstance: GoogleAuth | null = null
 let authOptions: GoogleAuthOptions | null = null
 

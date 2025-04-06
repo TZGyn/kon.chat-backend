@@ -5,6 +5,7 @@ import {
 	groq,
 	mistral,
 	openai,
+	openRouter,
 	vertex,
 	xai,
 } from '$lib/ai/model'
@@ -50,6 +51,10 @@ export const modelSchema = z
 			name: z.literal('mistral'),
 			model: z.enum(['mistral-small-latest']),
 		}),
+		z.object({
+			name: z.literal('open_router'),
+			model: z.enum(['openrouter/quasar-alpha']),
+		}),
 	])
 	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
 
@@ -69,6 +74,7 @@ export type Provider = z.infer<typeof modelSchema>
 export const freeModels = [
 	'gemini-2.0-flash-001',
 	'gemini-2.5-pro-exp-03-25',
+	'openrouter/quasar-alpha',
 ] as const
 
 export const standardModels = [
@@ -142,6 +148,8 @@ export const getModel = ({
 		model = xai(provider.model)
 	} else if (provider.name === 'mistral') {
 		model = mistral(provider.model)
+	} else if (provider.name === 'open_router') {
+		model = openRouter(provider.model)
 	} else {
 		return {
 			error: 'Invalid Model',
