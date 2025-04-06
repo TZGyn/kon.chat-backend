@@ -34,6 +34,8 @@ export const modelSchema = z
 				'deepseek-r1-distill-llama-70b',
 				'llama-3.3-70b-versatile',
 				'qwen-qwq-32b',
+				// 'meta-llama/llama-4-scout-17b-16e-instruct',
+				// 'meta-llama/llama-4-maverick-17b-128e-instruct',
 			]),
 		}),
 		z.object({
@@ -53,7 +55,11 @@ export const modelSchema = z
 		}),
 		z.object({
 			name: z.literal('open_router'),
-			model: z.enum(['openrouter/quasar-alpha']),
+			model: z.enum([
+				'openrouter/quasar-alpha',
+				'meta-llama/llama-4-scout:free',
+				'meta-llama/llama-4-maverick:free',
+			]),
 		}),
 	])
 	.default({ name: 'google', model: 'gemini-2.0-flash-001' })
@@ -75,6 +81,8 @@ export const freeModels = [
 	'gemini-2.0-flash-001',
 	'gemini-2.5-pro-exp-03-25',
 	'openrouter/quasar-alpha',
+	'meta-llama/llama-4-scout:free',
+	'meta-llama/llama-4-maverick:free',
 ] as const
 
 export const standardModels = [
