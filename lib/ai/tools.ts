@@ -190,7 +190,8 @@ export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
 					.array(z.string())
 					.describe(
 						'A list of domains to exclude from all search results.',
-					),
+					)
+					.optional(),
 			}),
 			execute: async ({
 				queries,
