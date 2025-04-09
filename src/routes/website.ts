@@ -21,6 +21,7 @@ app.post(
 		z.object({
 			prompt: z.string(),
 			currentHtml: z.string(),
+			userAvatar: z.string().optional(),
 			file: z
 				.instanceof(File)
 				.refine((file) => file.size <= 5 * 1024 * 1024, {
@@ -44,7 +45,8 @@ app.post(
 		}),
 	),
 	async (c) => {
-		const { prompt, file, currentHtml } = c.req.valid('form')
+		const { prompt, file, currentHtml, userAvatar } =
+			c.req.valid('form')
 
 		return createDataStreamResponse({
 			execute: async (dataStream) => {
@@ -108,6 +110,12 @@ app.post(
 						Also, try to ellaborate as much as you can, to create something unique. 
 						Make them into a landing page style
 						ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+
+						${
+							userAvatar
+								? `The user has also provided their avatar link, use this if necessary. Here is the link: ${userAvatar}`
+								: ''
+						}
 					`,
 					abortSignal: c.req.raw.signal,
 					onChunk: ({ chunk }) => {},
