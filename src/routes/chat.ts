@@ -1,8 +1,14 @@
 import {
+	AssistantContent,
+	CoreAssistantMessage,
 	CoreMessage,
+	CoreToolMessage,
 	createDataStreamResponse,
 	smoothStream,
 	streamText,
+	TextStreamPart,
+	ToolContent,
+	ToolSet,
 } from 'ai'
 import { z } from 'zod'
 import { getCookie } from 'hono/cookie'
@@ -25,7 +31,10 @@ import { redis } from '$lib/redis'
 import { getModel, modelSchema } from '$lib/model'
 import { processMessages } from '$lib/message'
 import { checkRatelimit, Limit } from '$lib/ratelimit'
-import { updateUserChatAndLimit } from '$lib/chat/utils'
+import {
+	mergeChunksToResponse,
+	updateUserChatAndLimit,
+} from '$lib/chat/utils'
 import { serialize } from 'hono/utils/cookie'
 import { activeTools, tools } from '$lib/ai/tools'
 import { nanoid } from '$lib/utils'
@@ -580,6 +589,20 @@ app.post(
 			}
 		}
 
+		const chunks: Extract<
+			TextStreamPart<ToolSet>,
+			{
+				type:
+					| 'text-delta'
+					| 'reasoning'
+					| 'source'
+					| 'tool-call'
+					| 'tool-call-streaming-start'
+					| 'tool-call-delta'
+					| 'tool-result'
+			}
+		>[] = []
+
 		return createDataStreamResponse({
 			headers: {
 				...c.res.headers,
@@ -686,7 +709,9 @@ app.post(
 					`,
 					providerOptions: providerOptions,
 					abortSignal: c.req.raw.signal,
-					onChunk: ({ chunk }) => {},
+					onChunk: ({ chunk }) => {
+						chunks.push(chunk)
+					},
 					maxSteps: 5,
 					// experimental_activeTools: [...activeTools(mode)],
 					tools: {
@@ -703,6 +728,7 @@ app.post(
 								data: metadata,
 							})
 						}
+						// console.log(data)
 						// console.log(
 						// 	require('util').inspect(
 						// 		data,
@@ -726,6 +752,15 @@ app.post(
 						providerMetadata,
 						finishReason,
 					}) => {
+						// const util = require('util')
+						// console.log('on finish')
+						// console.log(
+						// 	util.inspect(response.messages, {
+						// 		showHidden: false,
+						// 		depth: null,
+						// 		colors: true,
+						// 	}),
+						// )
 						updateUserChatAndLimit({
 							chatId,
 							messages: response.messages,
@@ -745,8 +780,38 @@ app.post(
 				result.mergeIntoDataStream(dataStream, {
 					sendReasoning: true,
 				})
+
+				// for await (const part of result.textStream) {
+				// 	console.log(part)
+				// }
 			},
 			onError: (error) => {
+				const responseMessages = mergeChunksToResponse(chunks)
+				updateUserChatAndLimit({
+					chatId,
+					messages: responseMessages,
+					provider,
+					providerMetadata: {
+						kon_chat: {
+							status: 'error',
+							error: {
+								type: 'stopped_by_user',
+								message: 'Stopped By User',
+							},
+						},
+					},
+					reasoning: undefined,
+					token,
+					usage: {
+						completionTokens: 0,
+						promptTokens: 0,
+						totalTokens: 0,
+					},
+					userMessage,
+					userMessageDate,
+					mode,
+					response_id: nanoid(),
+				})
 				// Error messages are masked by default for security reasons.
 				// If you want to expose the error message to the client, you can do so here:
 				console.log('Stream Error', error)

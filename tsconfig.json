@@ -6,6 +6,7 @@
 		},
 		"strict": true,
 		"jsx": "react-jsx",
-		"jsxImportSource": "hono/jsx"
+		"jsxImportSource": "hono/jsx",
+		"noErrorTruncation": true
 	}
 }

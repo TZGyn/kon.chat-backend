@@ -15,6 +15,10 @@ import {
 	CoreUserMessage,
 	generateId,
 	LanguageModelUsage,
+	AssistantContent,
+	TextStreamPart,
+	ToolContent,
+	ToolSet,
 } from 'ai'
 import { eq } from 'drizzle-orm'
 
@@ -151,4 +155,188 @@ export const updateUserLimit = async ({
 		user: loggedInUser,
 		mode: 'chat',
 	})
+}
+
+export const mergeChunksToResponse = (
+	chunks: Extract<
+		TextStreamPart<ToolSet>,
+		{
+			type:
+				| 'text-delta'
+				| 'reasoning'
+				| 'source'
+				| 'tool-call'
+				| 'tool-call-streaming-start'
+				| 'tool-call-delta'
+				| 'tool-result'
+		}
+	>[],
+) => {
+	type ResponseMessage = CoreAssistantMessage | CoreToolMessage
+	const responseMessages: ResponseMessage[] = []
+
+	let currentAssistantContent: Exclude<AssistantContent, string> = []
+	let currentToolContent: ToolContent = []
+	let textDelta = ''
+	let reasoningDelta = ''
+	let toolcall:
+		| {
+				toolCallId: string
+				toolName: string
+				args: any
+		  }
+		| undefined = undefined
+	let toolResult:
+		| {
+				toolCallId: string
+				toolName: string
+				args: any
+				result: any
+		  }
+		| undefined = undefined
+	let currentType:
+		| 'tool-call'
+		| 'tool-result'
+		| 'text-delta'
+		| 'reasoning'
+		| 'source'
+		| 'tool-call-streaming-start'
+		| 'tool-call-delta'
+		| undefined = undefined
+
+	for (const chunk of chunks) {
+		if (chunk.type !== currentType) {
+			if (currentType === 'text-delta') {
+				currentAssistantContent.push({
+					type: 'text',
+					text: textDelta,
+				})
+			}
+			if (currentType === 'reasoning') {
+				currentAssistantContent.push({
+					type: 'reasoning',
+					text: reasoningDelta,
+				})
+			}
+			if (currentType === 'tool-call') {
+				if (toolcall) {
+					currentAssistantContent.push({
+						type: 'tool-call',
+						...toolcall,
+					})
+				}
+			}
+
+			// @ts-ignore
+			if (currentType === 'tool-result') {
+				if (toolResult) {
+					currentToolContent.push({
+						type: 'tool-result',
+						...toolResult,
+					})
+				}
+			}
+
+			if (currentType) {
+				if (
+					// @ts-ignore
+					chunk.type === 'tool-result' &&
+					// @ts-ignore
+					currentType !== 'tool-result'
+				) {
+					responseMessages.push({
+						role: 'assistant',
+						content: [...currentAssistantContent],
+					})
+					// @ts-ignore
+					currentAssistantContent = []
+				}
+				if (
+					// @ts-ignore
+					chunk.type !== 'tool-result' &&
+					// @ts-ignore
+					currentType === 'tool-result'
+				) {
+					responseMessages.push({
+						role: 'tool',
+						content: [...currentToolContent],
+					})
+					// @ts-ignore
+					currentToolContent = []
+				}
+			}
+
+			textDelta = ''
+			reasoningDelta = ''
+			toolcall = undefined
+			currentType = chunk.type
+		}
+		if (chunk.type === 'text-delta') {
+			textDelta += chunk.textDelta
+		}
+		if (chunk.type === 'reasoning') {
+			reasoningDelta += chunk.textDelta
+		}
+		if (chunk.type === 'tool-call') {
+			toolcall = {
+				args: chunk.args,
+				toolCallId: chunk.toolCallId,
+				toolName: chunk.toolName,
+			}
+		}
+		// @ts-expect-error
+		if (chunk.type === 'tool-result') {
+			toolResult = {
+				// @ts-expect-error
+				args: chunk.args,
+				// @ts-expect-error
+				toolCallId: chunk.toolCallId,
+				// @ts-expect-error
+				toolName: chunk.toolName,
+				// @ts-expect-error
+				result: chunk.result,
+			}
+		}
+	}
+
+	if (currentType) {
+		// @ts-ignore
+		if (currentType === 'tool-result') {
+			responseMessages.push({
+				role: 'tool',
+				content: [
+					...currentToolContent,
+					{
+						type: 'tool-result',
+						...toolResult!,
+					},
+				],
+			})
+		} else {
+			const finalContent = currentAssistantContent
+			if (currentType === 'reasoning') {
+				finalContent.push({ type: 'reasoning', text: reasoningDelta })
+			}
+			if (currentType === 'text-delta') {
+				finalContent.push({ type: 'text', text: textDelta })
+			}
+			if (currentType === 'tool-call') {
+				finalContent.push({ type: 'tool-call', ...toolcall! })
+			}
+			responseMessages.push({
+				role: 'assistant',
+				content: finalContent,
+			})
+		}
+	}
+
+	// const util = require('util')
+	// console.log(
+	// 	util.inspect(responseMessages, {
+	// 		showHidden: false,
+	// 		depth: null,
+	// 		colors: true,
+	// 	}),
+	// )
+	return responseMessages
 }
