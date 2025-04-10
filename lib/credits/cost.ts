@@ -26,7 +26,7 @@ export const costTable: {
 	'gpt-4o-mini': 30,
 	'grok-2-1212': 40,
 	'grok-2-vision-1212': 40,
-	'grok-3-beta': 60,
+	'grok-3-beta': 80,
 	'grok-3-mini-beta': 30,
 	'llama-3.3-70b-versatile': 30,
 	'o3-mini': 40,
