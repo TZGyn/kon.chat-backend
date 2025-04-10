@@ -47,7 +47,12 @@ export const modelSchema = z
 		}),
 		z.object({
 			name: z.literal('xai'),
-			model: z.enum(['grok-2-1212', 'grok-2-vision-1212']),
+			model: z.enum([
+				'grok-2-1212',
+				'grok-2-vision-1212',
+				'grok-3-beta',
+				'grok-3-mini-beta',
+			]),
 		}),
 		z.object({
 			name: z.literal('mistral'),
@@ -93,6 +98,8 @@ export const standardModels = [
 	'llama-3.3-70b-versatile',
 	'grok-2-1212',
 	'grok-2-vision-1212',
+	'grok-3-beta',
+	'grok-3-mini-beta',
 	'qwen-qwq-32b',
 	'mistral-small-latest',
 ] as const
