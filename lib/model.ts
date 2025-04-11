@@ -64,6 +64,7 @@ export const modelSchema = z
 				'openrouter/quasar-alpha',
 				'meta-llama/llama-4-scout:free',
 				'meta-llama/llama-4-maverick:free',
+				'openrouter/optimus-alpha',
 			]),
 		}),
 	])
@@ -86,6 +87,7 @@ export const freeModels = [
 	'gemini-2.0-flash-001',
 	'gemini-2.5-pro-exp-03-25',
 	'openrouter/quasar-alpha',
+	'openrouter/optimus-alpha',
 	'meta-llama/llama-4-scout:free',
 	'meta-llama/llama-4-maverick:free',
 ] as const
