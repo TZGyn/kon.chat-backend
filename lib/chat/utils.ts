@@ -122,7 +122,9 @@ export const updateUserChatAndLimit = async ({
 							message.role === 'assistant'
 								? providerMetadata
 								: undefined,
-						...usage,
+						completionTokens: usage.completionTokens || 0,
+						promptTokens: usage.promptTokens || 0,
+						totalTokens: usage.totalTokens || 0,
 						createdAt: date,
 					}
 				},

@@ -22,6 +22,8 @@ export const processMessages = ({
 				}) || [],
 			parts:
 				message.parts?.filter((part) => {
+					if (part.type === 'reasoning' && !part.reasoning)
+						return false
 					if (part.type !== 'tool-invocation') return true
 					if (!('toolInvocation' in part)) return false
 					return 'result' in part.toolInvocation

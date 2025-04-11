@@ -56,10 +56,10 @@ export function sanitizeResponseMessages({
 				: true,
 		)
 
-		if (reasoning) {
-			// @ts-expect-error: reasoning message parts in sdk is wip
-			sanitizedContent.push({ type: 'reasoning', reasoning })
-		}
+		// if (reasoning) {
+		// 	// @ts-expect-error: reasoning message parts in sdk is wip
+		// 	sanitizedContent.push({ type: 'reasoning', reasoning })
+		// }
 
 		return {
 			...message,
