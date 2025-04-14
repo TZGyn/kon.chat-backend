@@ -19,7 +19,14 @@ export const modelSchema = z
 	.union([
 		z.object({
 			name: z.literal('openai'),
-			model: z.enum(['gpt-4o', 'gpt-4o-mini', 'o3-mini']),
+			model: z.enum([
+				'gpt-4o',
+				'gpt-4o-mini',
+				'gpt-4.1',
+				'gpt-4.1-mini',
+				'gpt-4.1-nano',
+				'o3-mini',
+			]),
 		}),
 		z.object({
 			name: z.literal('google'),
@@ -93,6 +100,9 @@ export const freeModels = [
 export const standardModels = [
 	'gpt-4o',
 	'gpt-4o-mini',
+	'gpt-4.1',
+	'gpt-4.1-mini',
+	'gpt-4.1-nano',
 	'o3-mini',
 	'deepseek-r1-distill-llama-70b',
 	'llama-3.3-70b-versatile',
