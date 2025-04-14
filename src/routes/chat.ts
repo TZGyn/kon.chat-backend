@@ -348,7 +348,6 @@ app.post(
 											}
 										}
 
-										console.log(final_files)
 										res.push({
 											...content,
 											result: { files: final_files },
