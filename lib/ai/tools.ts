@@ -138,6 +138,22 @@ export const tools = (
 								loggedInUser.id
 							}/chat/${chatId}/upload/${nanoid()}-generated_image.${extension}`
 
+							const existingChat = await db.query.chat.findFirst({
+								where: (chat, t) =>
+									t.and(
+										t.eq(chat.id, chatId),
+										t.eq(chat.userId, loggedInUser.id),
+									),
+							})
+
+							if (!existingChat)
+								return {
+									error: {
+										type: 'invalid_chat',
+										message: 'Invalid Chat Upload',
+									},
+								}
+
 							const s3file = s3Client.file(id)
 
 							await s3file.write(file.uint8Array)
@@ -151,7 +167,7 @@ export const tools = (
 								mimeType: file.mimeType,
 								name: 'generated_image.' + extension,
 								size: file.uint8Array.byteLength,
-								visibility: 'private',
+								visibility: existingChat.visibility,
 								createdAt: Date.now(),
 							})
 
