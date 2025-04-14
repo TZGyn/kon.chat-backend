@@ -1159,7 +1159,19 @@ app.put(
 							content.toolName === 'image_generation' &&
 							'files' in content.result
 						) {
-							res = [...res, ...content.result.files]
+							const files: string[] = []
+							for (const url of content.result.files as string[]) {
+								if (
+									Bun.env.APP_URL &&
+									url.startsWith(Bun.env.APP_URL)
+								) {
+									const id = (url as string).split('/').pop()
+
+									if (!id) continue
+									files.push(id)
+								}
+							}
+							res = [...res, ...files]
 						}
 					}
 				}
@@ -1256,7 +1268,16 @@ app.post('/:chat_id/copy', async (c) => {
 					content.type === 'tool-result' &&
 					'files' in content.result
 				) {
-					res = [...res, ...content.result.files]
+					const files: string[] = []
+					for (const url of content.result.files as string[]) {
+						if (Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL)) {
+							const id = (url as string).split('/').pop()
+
+							if (!id) continue
+							files.push(id)
+						}
+					}
+					res = [...res, ...files]
 				}
 			}
 		}
