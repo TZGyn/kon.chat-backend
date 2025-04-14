@@ -137,12 +137,13 @@ app.post(
 		z.object({
 			chat_id: z.string(),
 			new_chat_id: z.string(),
-			at: z.number(),
+			at_message_id: z.string(),
 		}),
 	),
 	async (c) => {
 		const token = getCookie(c, 'session') ?? null
-		const { at, chat_id, new_chat_id } = c.req.valid('json')
+		const { at_message_id, chat_id, new_chat_id } =
+			c.req.valid('json')
 
 		if (token === null) {
 			return c.text('You must be logged in', 401)
@@ -186,9 +187,14 @@ app.post(
 		}
 
 		const attachments = existingChat.messages
-			.slice(0, at + 1)
+			.slice(
+				0,
+				existingChat.messages.findIndex(
+					(message) => message.id === at_message_id,
+				) + 1,
+			)
 			.flatMap((message) => {
-				let res = []
+				let res: string[] = []
 				if (typeof message.content === 'string') {
 					return []
 				}
@@ -225,6 +231,24 @@ app.post(
 								if (!id) continue
 								res.push(id)
 							}
+						} else if (
+							content.type === 'tool-result' &&
+							content.toolName === 'image_generation' &&
+							'files' in content.result
+						) {
+							const files: string[] = []
+							for (const url of content.result.files as string[]) {
+								if (
+									Bun.env.APP_URL &&
+									url.startsWith(Bun.env.APP_URL)
+								) {
+									const id = (url as string).split('/').pop()
+
+									if (!id) continue
+									files.push(id)
+								}
+							}
+							res = [...res, ...files]
 						}
 					}
 				}
@@ -237,6 +261,7 @@ app.post(
 			userId: user.id,
 			visibility: 'private',
 			createdAt: Date.now(),
+			updatedAt: Date.now(),
 		})
 
 		const uploads = await db.query.upload.findMany({
@@ -274,7 +299,12 @@ app.post(
 			const now = Date.now()
 			await db.insert(message).values(
 				existingChat.messages
-					.slice(0, at + 1)
+					.slice(
+						0,
+						existingChat.messages.findIndex(
+							(message) => message.id === at_message_id,
+						) + 1,
+					)
 					.map((message, index) => {
 						const replaceAttachment = (content: unknown) => {
 							let res = []
@@ -289,6 +319,40 @@ app.post(
 										res.push(content)
 									} else if (content.type === 'tool-call') {
 										res.push(content)
+									} else if (
+										content.type === 'tool-result' &&
+										content.toolName === 'image_generation' &&
+										'files' in content.result
+									) {
+										const files = content.result.files as string[]
+
+										const final_files: string[] = []
+										for (const url of files) {
+											if (
+												Bun.env.APP_URL &&
+												url.startsWith(Bun.env.APP_URL)
+											) {
+												const id = url.split('/').pop()
+												if (!id) continue
+												const upload = uploadsData.find(
+													(data) => data.originalId === id,
+												)
+												if (upload) {
+													final_files.push(
+														Bun.env.APP_URL +
+															'/file-upload/' +
+															upload.id,
+													)
+												}
+												continue
+											}
+										}
+
+										console.log(final_files)
+										res.push({
+											...content,
+											result: { files: final_files },
+										})
 									} else if (content.type === 'image') {
 										const url = content.image as string
 
@@ -348,6 +412,8 @@ app.post(
 											}
 											continue
 										}
+									} else {
+										res.push(content)
 									}
 								}
 							}
@@ -715,7 +781,7 @@ app.post(
 					maxSteps: 5,
 					// experimental_activeTools: [...activeTools(mode)],
 					tools: {
-						...tools(dataStream, mode),
+						...tools(token, chatId, dataStream, mode),
 					},
 					onStepFinish: (data) => {
 						const metadata = data.providerMetadata?.google as
@@ -863,6 +929,18 @@ app.delete('/:chat_id', async (c) => {
 					continue
 				} else if (content.type === 'tool-call') {
 					continue
+				} else if (
+					content.type === 'tool-result' &&
+					content.toolName === 'image_generation' &&
+					'files' in content.result
+				) {
+					for (const url of content.result.files as string[]) {
+						if (Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL)) {
+							const id = url.split('/').pop()
+							if (!id) continue
+							res.push(id)
+						}
+					}
 				} else if (content.type === 'image') {
 					const url = content.image as string
 
@@ -1040,7 +1118,7 @@ app.put(
 				.where(and(eq(chat.id, chat_id), eq(chat.userId, user.id)))
 
 			const attachments = existingChat.messages.flatMap((message) => {
-				let res = []
+				let res: string[] = []
 				if (typeof message.content === 'string') {
 					return []
 				}
@@ -1077,6 +1155,12 @@ app.put(
 								if (!id) continue
 								res.push(id)
 							}
+						} else if (
+							content.type === 'tool-result' &&
+							content.toolName === 'image_generation' &&
+							'files' in content.result
+						) {
+							res = [...res, ...content.result.files]
 						}
 					}
 				}
@@ -1138,7 +1222,7 @@ app.post('/:chat_id/copy', async (c) => {
 	if (!existingChat) return c.json({ id: '' }, 404)
 
 	const attachments = existingChat.messages.flatMap((message) => {
-		let res = []
+		let res: string[] = []
 		if (typeof message.content === 'string') {
 			return []
 		}
@@ -1169,6 +1253,11 @@ app.post('/:chat_id/copy', async (c) => {
 						if (!id) continue
 						res.push(id)
 					}
+				} else if (
+					content.type === 'tool-result' &&
+					'files' in content.result
+				) {
+					res = [...res, ...content.result.files]
 				}
 			}
 		}
@@ -1286,6 +1375,8 @@ app.post('/:chat_id/copy', async (c) => {
 									}
 									continue
 								}
+							} else {
+								res.push(content)
 							}
 						}
 					}

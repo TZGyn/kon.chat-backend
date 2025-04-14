@@ -1,14 +1,20 @@
 import {
 	DataStreamWriter,
+	GeneratedFile,
 	experimental_generateImage as generateImage,
+	generateText,
 	tool,
 } from 'ai'
 import { z } from 'zod'
 import { exa } from './exa'
 import { tavily } from './tavily'
 import { jinaRead } from './jina'
-import { vertex } from './model'
+import { google, vertex } from './model'
 import { validateSessionToken } from '$lib/auth/session'
+import { nanoid } from '$lib/utils'
+import { s3Client } from '$lib/s3'
+import { db } from '$lib/db'
+import { upload } from '$lib/db/schema'
 
 type XResult = {
 	id: string
@@ -82,13 +88,87 @@ export const toolList = [
 
 export type Tool = (typeof toolList)[number]
 
-export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
+export const tools = (
+	token: string,
+	chatId: string,
+	dataStream: DataStreamWriter,
+	mode: Tool,
+) => {
 	const toolList = {
 		stock_chart: tool({
 			description: 'Get stock data',
 			parameters: z.object({
 				symbol: z.string().describe('symbol of the stock'),
 			}),
+		}),
+		image_generation: tool({
+			description:
+				'Generate Image (not to be used for editing image)',
+			parameters: z.object({
+				prompt: z.string().describe('prompt to generate image'),
+			}),
+
+			execute: async ({ prompt }) => {
+				try {
+					const { session, user: loggedInUser } =
+						await validateSessionToken(token)
+
+					if (!loggedInUser)
+						return {
+							error: {
+								type: 'unauthenticated',
+								message: 'Must Be Logged In To Use This Feature',
+							},
+						}
+
+					const result = await generateText({
+						model: google('gemini-2.0-flash-exp'),
+						providerOptions: {
+							google: { responseModalities: ['TEXT', 'IMAGE'] },
+						},
+						prompt: prompt,
+					})
+
+					const files: string[] = []
+					for (const file of result.files) {
+						if (file.mimeType.startsWith('image/')) {
+							// show the image
+							const extension = file.mimeType.split('/')[1]
+							const id = `${
+								loggedInUser.id
+							}/chat/${chatId}/upload/${nanoid()}-generated_image.${extension}`
+
+							const s3file = s3Client.file(id)
+
+							await s3file.write(file.uint8Array)
+
+							const uploadId = nanoid() + `.${extension}`
+
+							await db.insert(upload).values({
+								id: uploadId,
+								userId: loggedInUser.id,
+								key: id,
+								mimeType: file.mimeType,
+								name: 'generated_image.' + extension,
+								size: file.uint8Array.byteLength,
+								visibility: 'private',
+								createdAt: Date.now(),
+							})
+
+							files.push(Bun.env.APP_URL + '/file-upload/' + uploadId)
+						}
+					}
+
+					return { files }
+				} catch (error) {
+					return {
+						error: {
+							type: 'server_error',
+							message: 'something wrong when generating image',
+						},
+					}
+				}
+			},
 		}),
 		x_search: tool({
 			description: 'Search X (formerly Twitter) posts.',
@@ -442,7 +522,7 @@ export const tools = (dataStream: DataStreamWriter, mode: Tool) => {
 	}
 
 	const toolMap = {
-		chat: {},
+		chat: { image_generation: toolList.image_generation },
 		x_search: { x_search: toolList.x_search },
 		web_search: { web_search: toolList.web_search },
 		academic_search: { academic_search: toolList.academic_search },
