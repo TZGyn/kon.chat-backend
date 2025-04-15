@@ -217,6 +217,25 @@ export const processMessages = ({
 			return message
 		})
 	}
+
+	coreMessages = [
+		...coreMessages.map((message) => {
+			if (
+				message.role === 'assistant' &&
+				typeof message.content !== 'string'
+			) {
+				return {
+					...message,
+					content: message.content.filter(
+						(content) =>
+							content.type !== 'reasoning' &&
+							content.type !== 'redacted-reasoning',
+					),
+				}
+			}
+			return message
+		}),
+	]
 	return { coreMessages, userMessage, userMessageDate }
 }
 
