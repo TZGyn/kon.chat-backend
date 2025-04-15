@@ -109,6 +109,7 @@ export const tools = (
 				image_url: z
 					.string()
 					.optional()
+					.nullable()
 					.describe(
 						'image reference/image to edit (empty string if none)',
 					),
