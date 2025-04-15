@@ -102,8 +102,7 @@ export const tools = (
 			}),
 		}),
 		image_generation: tool({
-			description:
-				'Generate Image (not to be used for editing image)',
+			description: 'Generate/Edit Image',
 			parameters: z.object({
 				prompt: z.string().describe('prompt to generate image'),
 				image_url: z

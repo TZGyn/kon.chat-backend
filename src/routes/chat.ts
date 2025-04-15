@@ -792,7 +792,7 @@ app.post(
 					onChunk: ({ chunk }) => {
 						chunks.push(chunk)
 					},
-					maxSteps: 2,
+					maxSteps: 5,
 					// experimental_activeTools: [...activeTools(mode)],
 					tools: {
 						...tools(token, chatId, dataStream, mode),
