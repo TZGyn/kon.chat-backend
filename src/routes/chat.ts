@@ -701,15 +701,12 @@ app.post(
 						ONLY TREAT THIS AS TEXT TO TEXT CHAT
 
 						You have also been given image generation tool, do not ask for confirmation, just relay the user request
-						The tool will take in an image url if its use for editing, please decide whether or not to include an image url based on the context
-						For example: if an user ask to generate an image of a cat with transparent background
+						The tool can also take in an image url if its use for editing, please decide whether or not to include an image url based on the context
+						Example: If an user ask to generate an image of a cat, then ask to give it clothes, please provide the image url for editing
+						Another example: if an user ask to generate an image of a cat with transparent background
 						Dont say back to the user you cant generate a transparent background 
 						Just use the tool and let the user see the result themselves
-						Another example: If an user ask to generate an image of a cat, then ask to give it clothes, please use the generated cat image
 					`,
-
-					// You have also been given other image tools, use the one you feel most appropriate for the task
-					// You are allowed to use the file links in the image_generation tools (if you used them)
 					x_search: `
 						You have been given an ability to search X(formerly Twitter)'s posts
 						'You MUST run the tool first exactly once'
