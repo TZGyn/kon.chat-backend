@@ -16,7 +16,11 @@ app.get('/:upload_id', async (c) => {
 
 	const s3file = s3Client.file(uploadContent.key)
 
-	return c.newResponse(s3file.stream())
+	return c.newResponse(s3file.stream(), {
+		headers: {
+			'Cache-Control': 'public, max-age=31536000, immutable',
+		},
+	})
 })
 
 export default app
