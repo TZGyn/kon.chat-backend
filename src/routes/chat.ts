@@ -708,6 +708,8 @@ app.post(
 						Just use the tool and let the user see the result themselves
 
 						Remember to evaluate after using the tools
+						
+						IMPORTANT NOTES FOR IMAGE GENERATION TOOL: ONCE YOU RECEIVE THE FILES URL, THE IMAGE GENERATION IS CONSIDERED DONE
 					`,
 					x_search: `
 						You have been given an ability to search X(formerly Twitter)'s posts
