@@ -39,6 +39,39 @@ export const processMessages = ({
 			return message
 		} else {
 			if (message.role === 'tool') {
+				if (
+					message.content[0]?.toolName === 'image_generation' &&
+					message.content[0].result
+				) {
+					const files = (
+						message.content[0].result as { files: string[] }
+					).files.filter(
+						(url) =>
+							Bun.env.APP_URL && url.startsWith(Bun.env.APP_URL),
+					)
+
+					if (files.length <= 0) {
+						return message
+					}
+
+					return {
+						role: 'user',
+						content: [
+							...files.flatMap((file) => {
+								return [
+									{
+										type: 'text' as const,
+										text: 'Generated Images From Image Generation Tool',
+									},
+									{
+										type: 'image' as const,
+										image: file,
+									},
+								]
+							}),
+						],
+					}
+				}
 				return {
 					...message,
 					content: message.content.filter((content) => {
