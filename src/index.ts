@@ -15,7 +15,6 @@ import BillingRoutes from './routes/billing'
 import DocumentsRoutes from './routes/document'
 import YoutubeRoutes from './routes/youtube'
 import VersionRoutes from './routes/version'
-import ImageRoutes from './routes/image'
 import WebsiteRoutes from './routes/website'
 
 const app = new Hono()
@@ -63,7 +62,6 @@ app.route('/billing', BillingRoutes)
 app.route('/documents', DocumentsRoutes)
 app.route('/youtube', YoutubeRoutes)
 app.route('/version', VersionRoutes)
-app.route('/image', ImageRoutes)
 app.route('/website', WebsiteRoutes)
 
 export default {
