@@ -72,7 +72,12 @@ export const processMessages = ({
 			if (message.role === 'tool') {
 				if (
 					message.content[0]?.toolName === 'image_generation' &&
-					message.content[0].result
+					message.content[0].result &&
+					'files' in
+						(message.content[0].result as {
+							files?: string[]
+							error?: any
+						})
 				) {
 					const files = (
 						message.content[0].result as { files: string[] }
