@@ -231,11 +231,21 @@ export const processMessages = ({
 			) {
 				return {
 					...message,
-					content: message.content.filter(
-						(content) =>
-							content.type !== 'reasoning' &&
-							content.type !== 'redacted-reasoning',
-					),
+					content: message.content
+						.filter(
+							(content) =>
+								content.type !== 'reasoning' &&
+								content.type !== 'redacted-reasoning',
+						)
+						.map((message) => {
+							if (message.type === 'text') {
+								return {
+									...message,
+									text: message.text || 'No Message',
+								}
+							}
+							return message
+						}),
 				}
 			}
 			return message
