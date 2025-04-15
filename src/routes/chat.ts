@@ -29,7 +29,7 @@ import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
 import { redis } from '$lib/redis'
 import { getModel, modelSchema } from '$lib/model'
-import { processMessages } from '$lib/message'
+import { checkNewChat, processMessages } from '$lib/message'
 import { checkRatelimit, Limit } from '$lib/ratelimit'
 import {
 	mergeChunksToResponse,
@@ -607,6 +607,12 @@ app.post(
 			return c.text(processMessageError, { status: 400 })
 		}
 
+		checkNewChat({
+			chat_id: chatId,
+			user_message: userMessage,
+			token: token,
+		})
+
 		if (limit.plan === 'free' || limit.plan === 'trial') {
 			if (Array.isArray(userMessage.content)) {
 				if (
@@ -695,9 +701,11 @@ app.post(
 						ONLY TREAT THIS AS TEXT TO TEXT CHAT
 
 						You have also been given image generation tool, do not ask for confirmation, just relay the user request
+						The tool will take in an image url if its use for editing, please decide whether or not to include an image url based on the context
 						For example: if an user ask to generate an image of a cat with transparent background
 						Dont say back to the user you cant generate a transparent background 
 						Just use the tool and let the user see the result themselves
+						Another example: If an user ask to generate an image of a cat, then ask to give it clothes, please use the generated cat image
 					`,
 
 					// You have also been given other image tools, use the one you feel most appropriate for the task
@@ -772,7 +780,7 @@ app.post(
 						\`\`\`
 
 						Do not generate tool call details to the user
-						It is recommended to generate some text, letting the user knows your thinking process before using a tool.
+						It is a must to generate some text, letting the user knows your thinking process before using a tool.
 						Thus providing better user experience, rather than immediately jump to using the tool and generate a conclusion
 
 						Common Order: Tool, Text

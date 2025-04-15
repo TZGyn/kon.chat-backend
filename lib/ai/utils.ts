@@ -52,7 +52,7 @@ export function sanitizeResponseMessages({
 			content.type === 'tool-call'
 				? toolResultIds.includes(content.toolCallId)
 				: content.type === 'text'
-				? content.text.length > 0
+				? true
 				: true,
 		)
 

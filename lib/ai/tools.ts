@@ -106,9 +106,14 @@ export const tools = (
 				'Generate Image (not to be used for editing image)',
 			parameters: z.object({
 				prompt: z.string().describe('prompt to generate image'),
+				image_url: z
+					.string()
+					.optional()
+					.describe(
+						'image reference/image to edit (empty string if none)',
+					),
 			}),
-
-			execute: async ({ prompt }) => {
+			execute: async ({ prompt, image_url }) => {
 				try {
 					const { session, user: loggedInUser } =
 						await validateSessionToken(token)
@@ -126,7 +131,17 @@ export const tools = (
 						providerOptions: {
 							google: { responseModalities: ['TEXT', 'IMAGE'] },
 						},
-						prompt: prompt,
+						messages: [
+							{
+								role: 'user',
+								content: [
+									{ type: 'text', text: prompt },
+									...(image_url
+										? [{ type: 'image' as const, image: image_url }]
+										: []),
+								],
+							},
+						],
 					})
 
 					const files: string[] = []
@@ -538,7 +553,10 @@ export const tools = (
 	}
 
 	const toolMap = {
-		chat: { image_generation: toolList.image_generation },
+		chat: {
+			image_generation: toolList.image_generation,
+			// image_captioning: toolList.image_captioning,
+		},
 		x_search: { x_search: toolList.x_search },
 		web_search: { web_search: toolList.web_search },
 		academic_search: { academic_search: toolList.academic_search },
@@ -553,7 +571,7 @@ export const activeTools = (
 ) => {
 	const toolMap = {
 		x_search: ['x_search'],
-		chat: [],
+		chat: ['image_generation'],
 		web_search: ['web_search'],
 		web_reader: ['web_reader'],
 		image: ['generate_image'],

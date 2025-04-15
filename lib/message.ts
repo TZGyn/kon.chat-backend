@@ -1,7 +1,18 @@
-import { convertToCoreMessages } from 'ai'
+import {
+	AssistantContent,
+	convertToCoreMessages,
+	CoreAssistantMessage,
+	CoreSystemMessage,
+	CoreToolMessage,
+	CoreUserMessage,
+} from 'ai'
 import { getMostRecentUserMessage } from './utils'
 import { modelSchema } from './model'
 import { z } from 'zod'
+import { db } from './db'
+import { generateTitleFromUserMessage } from './ai/utils'
+import { chat } from './db/schema'
+import { validateSessionToken } from './auth/session'
 
 export const processMessages = ({
 	messages,
@@ -34,10 +45,30 @@ export const processMessages = ({
 	const userMessage = getMostRecentUserMessage(coreMessages)
 	const userMessageDate = Date.now()
 
-	coreMessages = coreMessages.map((message) => {
+	coreMessages = coreMessages.flatMap((message) => {
 		if (message.role === 'user') {
-			return message
+			return [message] as (
+				| CoreSystemMessage
+				| CoreAssistantMessage
+				| CoreToolMessage
+				| CoreUserMessage
+			)[]
 		} else {
+			if (
+				message.role === 'assistant' &&
+				provider.name === 'mistral' &&
+				typeof message.content !== 'string'
+			) {
+				return {
+					...message,
+					content: [
+						...message.content.map((message) => ({
+							...message,
+							toolCallId: 'abcdefghi',
+						})),
+					],
+				}
+			}
 			if (message.role === 'tool') {
 				if (
 					message.content[0]?.toolName === 'image_generation' &&
@@ -51,36 +82,90 @@ export const processMessages = ({
 					)
 
 					if (files.length <= 0) {
-						return message
+						return [message] as (
+							| CoreSystemMessage
+							| CoreAssistantMessage
+							| CoreToolMessage
+							| CoreUserMessage
+						)[]
 					}
 
-					return {
-						role: 'user',
-						content: [
-							...files.flatMap((file) => {
-								return [
-									{
-										type: 'text' as const,
-										text: 'Generated Images From Image Generation Tool',
-									},
-									{
-										type: 'image' as const,
-										image: file,
-									},
-								]
-							}),
-						],
-					}
+					return [
+						provider.name === 'mistral'
+							? {
+									...message,
+									content: [
+										...message.content.map((message) => ({
+											...message,
+											toolCallId: 'abcdefghi',
+										})),
+									],
+							  }
+							: message,
+						provider.name === 'mistral'
+							? {
+									role: 'assistant',
+									content: [
+										...files.flatMap((file) => {
+											return [
+												{
+													type: 'text',
+													text: 'Generated Images From Image Generation Tool',
+												},
+												{
+													type: 'file',
+													data: file,
+													mimeType: 'image/png',
+												},
+											] as Exclude<AssistantContent, string>
+										}),
+									],
+							  }
+							: {
+									role: 'user',
+									content: [
+										...files.flatMap((file) => {
+											return [
+												{
+													type: 'text' as const,
+													text: 'Generated Images From Image Generation Tool',
+												},
+												{
+													type: 'image' as const,
+													image: file,
+												},
+											]
+										}),
+									],
+							  },
+					] as (
+						| CoreSystemMessage
+						| CoreAssistantMessage
+						| CoreToolMessage
+						| CoreUserMessage
+					)[]
 				}
-				return {
-					...message,
-					content: message.content.filter((content) => {
-						if (!content.result) return false
-						return true
-					}),
-				}
+				return [
+					{
+						...message,
+						content: message.content.filter((content) => {
+							if (!content.result) return false
+							return true
+						}),
+					},
+				] as (
+					| CoreSystemMessage
+					| CoreAssistantMessage
+					| CoreToolMessage
+					| CoreUserMessage
+				)[]
 			}
-			return message
+			return [message] as (
+				| CoreSystemMessage
+				| CoreAssistantMessage
+				| CoreToolMessage
+				| CoreUserMessage
+			)[]
 		}
 	})
 
@@ -88,7 +173,14 @@ export const processMessages = ({
 		return { error: 'No User Message' }
 	}
 
-	if (provider.name === 'groq') {
+	if (
+		provider.name === 'groq' ||
+		provider.name === 'xai' ||
+		(provider.name === 'open_router' &&
+			(provider.model === 'meta-llama/llama-4-maverick:free' ||
+				provider.model === 'meta-llama/llama-4-scout:free')) ||
+		provider.name === 'mistral'
+	) {
 		coreMessages = coreMessages.map((message) => {
 			if (message.role === 'user') {
 				if (Array.isArray(message.content)) {
@@ -126,4 +218,38 @@ export const processMessages = ({
 		})
 	}
 	return { coreMessages, userMessage, userMessageDate }
+}
+
+export const checkNewChat = async ({
+	chat_id,
+	user_message,
+	token,
+}: {
+	chat_id: string
+	token: string
+	user_message: CoreUserMessage
+}) => {
+	const { session, user: loggedInUser } = await validateSessionToken(
+		token,
+	)
+
+	if (!loggedInUser) return
+
+	const existingChat = await db.query.chat.findFirst({
+		where: (chat, { eq, and }) => and(eq(chat.id, chat_id)),
+	})
+
+	if (!existingChat) {
+		const title = await generateTitleFromUserMessage({
+			message: user_message,
+		})
+
+		await db.insert(chat).values({
+			id: chat_id,
+			title: title,
+			userId: loggedInUser.id,
+			createdAt: Date.now(),
+			updatedAt: Date.now(),
+		})
+	}
 }
