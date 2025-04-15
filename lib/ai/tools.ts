@@ -108,10 +108,8 @@ export const tools = (
 				prompt: z.string().describe('prompt to generate image'),
 				image_url: z
 					.string()
-					.optional()
-					.nullable()
 					.describe(
-						'image reference/image to edit (empty string if none)',
+						'image reference/image to edit (put empty string if none)',
 					),
 			}),
 			execute: async ({ prompt, image_url }) => {
