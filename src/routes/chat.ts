@@ -706,6 +706,8 @@ app.post(
 						Another example: if an user ask to generate an image of a cat with transparent background
 						Dont say back to the user you cant generate a transparent background 
 						Just use the tool and let the user see the result themselves
+
+						Remember to evaluate after using the tools
 					`,
 					x_search: `
 						You have been given an ability to search X(formerly Twitter)'s posts
@@ -790,7 +792,7 @@ app.post(
 					onChunk: ({ chunk }) => {
 						chunks.push(chunk)
 					},
-					maxSteps: 5,
+					maxSteps: 2,
 					// experimental_activeTools: [...activeTools(mode)],
 					tools: {
 						...tools(token, chatId, dataStream, mode),
