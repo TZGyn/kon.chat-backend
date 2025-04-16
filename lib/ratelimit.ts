@@ -37,11 +37,12 @@ export const checkRatelimit = async ({
 	if (!token) {
 		token = `free:${generateId()}`
 		cookie = 'set'
-		await redis.set(
+		await redis.set<Limit>(
 			token + '-limit',
 			{
 				plan: 'trial',
 				credits: 0,
+				purchased_credits: 0,
 			},
 			{ ex: 60 * 60 * 24 },
 		)
@@ -129,7 +130,7 @@ export const updateUserRatelimit = async ({
 
 	await Promise.all(
 		currentUser.sessions.map(async (session) => {
-			await redis.set(
+			await redis.set<Limit>(
 				session.id + '-limit',
 				{
 					plan: updatedUser.plan,
@@ -157,7 +158,7 @@ export const syncUserRatelimitWithDB = async (userId: string) => {
 
 	await Promise.all(
 		currentUser.sessions.map(async (session) => {
-			await redis.set(
+			await redis.set<Limit>(
 				session.id + '-limit',
 				{
 					plan: currentUser.plan,

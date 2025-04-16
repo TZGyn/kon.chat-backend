@@ -241,7 +241,9 @@ export const processMessages = ({
 							if (message.type === 'text') {
 								return {
 									...message,
-									text: message.text || 'No Message',
+									text:
+										message.text ||
+										'/*LLM DID NOT GENERATE ANY RESPONSE*/',
 								}
 							}
 							return message

@@ -1,13 +1,9 @@
 import {
-	AssistantContent,
-	CoreAssistantMessage,
-	CoreMessage,
-	CoreToolMessage,
+	APICallError,
 	createDataStreamResponse,
 	smoothStream,
 	streamText,
 	TextStreamPart,
-	ToolContent,
 	ToolSet,
 } from 'ai'
 import { z } from 'zod'
@@ -27,16 +23,15 @@ import { chat, message, upload } from '$lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google'
-import { redis } from '$lib/redis'
 import { getModel, modelSchema } from '$lib/model'
 import { checkNewChat, processMessages } from '$lib/message'
-import { checkRatelimit, Limit } from '$lib/ratelimit'
+import { checkRatelimit } from '$lib/ratelimit'
 import {
 	mergeChunksToResponse,
 	updateUserChatAndLimit,
 } from '$lib/chat/utils'
 import { serialize } from 'hono/utils/cookie'
-import { activeTools, tools } from '$lib/ai/tools'
+import { tools } from '$lib/ai/tools'
 import { nanoid } from '$lib/utils'
 import { s3Client } from '$lib/s3'
 
@@ -787,6 +782,9 @@ app.post(
 						Common Order: Tool, Text
 						Better order you must follow: Text, Tool, Text
 
+						If the tools return an unauthenticated error due to user not logged in, please say the following to the user:
+						"You must be logged in to use this feature, if you sign up we will give you 50 credits (worth $0.50)"
+
 						${additionalSystemPrompt[mode]}
 					`,
 					providerOptions: providerOptions,
@@ -871,16 +869,37 @@ app.post(
 				const responseMessages = mergeChunksToResponse(chunks)
 				updateUserChatAndLimit({
 					chatId,
-					messages: responseMessages,
+					messages:
+						responseMessages.length > 0
+							? responseMessages
+							: [
+									{
+										role: 'assistant',
+										content: [{ type: 'text', text: '' }],
+									},
+							  ],
 					provider,
 					providerMetadata: {
-						kon_chat: {
-							status: 'error',
-							error: {
-								type: 'stopped_by_user',
-								message: 'Stopped By User',
-							},
-						},
+						kon_chat:
+							error instanceof APICallError
+								? {
+										status: 'error',
+										error: {
+											type: 'api_call_error',
+											message:
+												// @ts-ignore
+												error.data?.error?.message ||
+												'Error when generating response',
+											error: error,
+										},
+								  }
+								: {
+										status: 'error',
+										error: {
+											type: 'stopped_by_user',
+											message: 'Stopped By User',
+										},
+								  },
 					},
 					reasoning: undefined,
 					token,

@@ -121,6 +121,8 @@ export const tools = (
 							error: {
 								type: 'unauthenticated',
 								message: 'Must Be Logged In To Use This Feature',
+								message_to_llm:
+									'Please let your request user know they must be logged in to use this feature',
 							},
 						}
 
@@ -194,6 +196,8 @@ export const tools = (
 						error: {
 							type: 'server_error',
 							message: 'something wrong when generating image',
+							message_to_llm:
+								'Server encounters issues when generating the image',
 						},
 					}
 				}
