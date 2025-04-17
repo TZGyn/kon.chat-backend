@@ -25,8 +25,14 @@ export const modelSchema = z
 				'gpt-4.1',
 				'gpt-4.1-mini',
 				'gpt-4.1-nano',
-				'o3-mini',
 			]),
+		}),
+		z.object({
+			name: z.literal('openai'),
+			model: z.enum(['o3-mini', 'o4-mini']),
+			reasoning_effort: z
+				.enum(['low', 'medium', 'high'])
+				.default('low'),
 		}),
 		z.object({
 			name: z.literal('google'),
@@ -102,6 +108,7 @@ export const standardModels = [
 	'gpt-4.1-mini',
 	'gpt-4.1-nano',
 	'o3-mini',
+	'o4-mini',
 	'deepseek-r1-distill-llama-70b',
 	'llama-3.3-70b-versatile',
 	'grok-2-1212',
@@ -142,9 +149,12 @@ export const getModel = ({
 		})
 	} else if (provider.name === 'openai') {
 		model = openai(provider.model)
-		if (provider.model === 'o3-mini') {
+		if (
+			provider.model === 'o3-mini' ||
+			provider.model === 'o4-mini'
+		) {
 			providerOptions = {
-				openai: { reasoningEffort: 'high' },
+				openai: { reasoningEffort: provider.reasoning_effort },
 			}
 		}
 	} else if (provider.name === 'groq') {
