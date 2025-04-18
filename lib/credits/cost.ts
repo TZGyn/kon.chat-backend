@@ -28,6 +28,7 @@ export const costTable: {
 	'gpt-4o-mini': 30,
 	'o4-mini': 50,
 	'o3-mini': 50,
+	'gemini-2.5-flash-preview-04-17': 20,
 	'grok-2-1212': 40,
 	'grok-2-vision-1212': 40,
 	'grok-3-beta': 200,

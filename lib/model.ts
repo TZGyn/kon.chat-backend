@@ -39,6 +39,7 @@ export const modelSchema = z
 			model: z.enum([
 				'gemini-2.0-flash-001',
 				'gemini-2.5-pro-exp-03-25',
+				'gemini-2.5-flash-preview-04-17',
 			]),
 		}),
 		z.object({
@@ -109,6 +110,7 @@ export const standardModels = [
 	'gpt-4.1-nano',
 	'o3-mini',
 	'o4-mini',
+	'gemini-2.5-flash-preview-04-17',
 	'deepseek-r1-distill-llama-70b',
 	'llama-3.3-70b-versatile',
 	'grok-2-1212',
