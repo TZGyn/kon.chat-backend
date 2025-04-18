@@ -20,7 +20,7 @@ import {
 	ToolContent,
 	ToolSet,
 } from 'ai'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 export const updateUserChatAndLimit = async ({
 	token,
@@ -72,6 +72,23 @@ export const updateUserChatAndLimit = async ({
 		})
 
 		newChat = true
+	}
+
+	if (existingChat && existingChat.title === 'New Chat') {
+		const title = await generateTitleFromUserMessage({
+			message: userMessage,
+		})
+		await db
+			.update(chat)
+			.set({
+				title: title,
+			})
+			.where(
+				and(
+					eq(chat.userId, loggedInUser.id),
+					eq(chat.id, existingChat.id),
+				),
+			)
 	}
 
 	if (

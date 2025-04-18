@@ -1074,11 +1074,25 @@ app.post(
 		}
 
 		const existingChat = await db.query.chat.findFirst({
-			where: (chat, t) =>
-				t.and(t.eq(chat.id, chatId), t.eq(chat.userId, user.id)),
+			where: (chat, t) => t.eq(chat.id, chatId),
 		})
 
-		if (!existingChat) return c.text('Unauthenticated Upload', 401)
+		if (existingChat && existingChat.userId !== user.id) {
+			return c.text('Unauthenticated Upload', 401)
+		}
+
+		let userChat = existingChat
+		if (!userChat) {
+			userChat = {
+				id: chatId,
+				title: 'New Chat',
+				userId: user.id,
+				visibility: 'private',
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+			}
+			await db.insert(chat).values(userChat)
+		}
 
 		const file = c.req.valid('form').file
 
@@ -1097,7 +1111,7 @@ app.post(
 			mimeType: file.type,
 			name: file.name,
 			size: file.size,
-			visibility: existingChat.visibility,
+			visibility: userChat.visibility,
 			createdAt: Date.now(),
 		})
 
