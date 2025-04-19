@@ -114,6 +114,54 @@ app.get('/plan/pro', async (c) => {
 	)
 })
 
+app.get('/one-time/500', async (c) => {
+	const token = getCookie(c, 'session') ?? null
+
+	if (token === null || token.startsWith('free:')) {
+		return c.redirect(
+			'/auth/login/google?redirect=/billing/one-time/500',
+			302,
+		)
+	}
+
+	const { session, user } = await validateSessionToken(token)
+
+	if (!user) {
+		return c.redirect('/auth/login/google', 302)
+	}
+
+	if (session !== null) {
+		setSessionTokenCookie(c, token, session.expiresAt)
+	} else {
+		deleteSessionTokenCookie(c)
+	}
+
+	let polarCustomerId = user.polarCustomerId
+
+	if (!polarCustomerId) {
+		const result = await polar.customers.create({
+			email: user.email,
+			metadata: {
+				customerId: user.id,
+			},
+		})
+
+		await db
+			.update(userTable)
+			.set({
+				polarCustomerId: result.id,
+			})
+			.where(eq(userTable.id, user.id))
+
+		polarCustomerId = result.id
+	}
+
+	return c.redirect(
+		`/billing/checkout?productPriceId=${Bun.env.POLAR_500_CREDITS_PRICE_ID}&customerId=${polarCustomerId}`,
+		302,
+	)
+})
+
 app.get(
 	'/checkout',
 	Checkout({
