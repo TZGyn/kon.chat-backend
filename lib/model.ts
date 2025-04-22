@@ -14,6 +14,7 @@ import {
 	LanguageModelV1,
 	wrapLanguageModel,
 } from 'ai'
+import { type GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 
 export const modelSchema = z
 	.union([
@@ -39,8 +40,12 @@ export const modelSchema = z
 			model: z.enum([
 				'gemini-2.0-flash-001',
 				'gemini-2.5-pro-exp-03-25',
-				'gemini-2.5-flash-preview-04-17',
 			]),
+		}),
+		z.object({
+			name: z.literal('google'),
+			model: z.enum(['gemini-2.5-flash-preview-04-17']),
+			thinking_budget: z.number().min(0).default(0),
 		}),
 		z.object({
 			name: z.literal('groq'),
@@ -149,6 +154,15 @@ export const getModel = ({
 		model = google(provider.model, {
 			useSearchGrounding: searchGrounding,
 		})
+		if (provider.model === 'gemini-2.5-flash-preview-04-17') {
+			providerOptions = {
+				google: {
+					thinkingConfig: {
+						thinkingBudget: provider.thinking_budget,
+					},
+				} satisfies GoogleGenerativeAIProviderOptions,
+			}
+		}
 	} else if (provider.name === 'openai') {
 		model = openai(provider.model)
 		if (
