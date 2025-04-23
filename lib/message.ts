@@ -5,6 +5,7 @@ import {
 	CoreSystemMessage,
 	CoreToolMessage,
 	CoreUserMessage,
+	ToolInvocation,
 } from 'ai'
 import { getMostRecentUserMessage } from './utils'
 import { modelSchema } from './model'
@@ -28,11 +29,11 @@ export const processMessages = ({
 		.map((message) => ({
 			...message,
 			toolInvocations:
-				message.toolInvocations?.filter((tool) => {
+				message.toolInvocations?.filter((tool: ToolInvocation) => {
 					return 'result' in tool
 				}) || [],
 			parts:
-				message.parts?.filter((part) => {
+				message.parts?.filter((part: any) => {
 					if (part.type === 'reasoning' && !part.reasoning)
 						return false
 					if (part.type !== 'tool-invocation') return true
@@ -47,12 +48,32 @@ export const processMessages = ({
 
 	coreMessages = coreMessages.flatMap((message) => {
 		if (message.role === 'user') {
-			return [message] as (
-				| CoreSystemMessage
-				| CoreAssistantMessage
-				| CoreToolMessage
-				| CoreUserMessage
-			)[]
+			return [
+				{
+					...message,
+					content:
+						typeof message.content === 'string'
+							? message.content
+							: message.content.flatMap((content) => {
+									if (content.type === 'image') {
+										if (
+											content.image instanceof URL &&
+											Bun.env.APP_URL &&
+											content.image.origin === Bun.env.APP_URL
+										) {
+											return [
+												{
+													type: 'text',
+													text: 'Image Link: ' + content.image,
+												},
+												content,
+											]
+										}
+									}
+									return [content]
+							  }),
+				},
+			]
 		} else {
 			if (
 				message.role === 'assistant' &&
@@ -165,12 +186,7 @@ export const processMessages = ({
 					| CoreUserMessage
 				)[]
 			}
-			return [message] as (
-				| CoreSystemMessage
-				| CoreAssistantMessage
-				| CoreToolMessage
-				| CoreUserMessage
-			)[]
+			return [message]
 		}
 	})
 
