@@ -41,6 +41,7 @@ export const costTable: {
 	web_reader: 200,
 	web_search: 200,
 	x_search: 200,
+	'gpt-image-1': 1200,
 	// image: 5,
 } as const
 

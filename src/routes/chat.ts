@@ -559,6 +559,7 @@ app.post(
 					z.literal('web_search'),
 					z.literal('academic_search'),
 					z.literal('web_reader'),
+					z.literal('gpt-image-1'),
 				])
 				.default('chat'),
 		}),
@@ -727,6 +728,12 @@ app.post(
 						DO NOT ASK THE USER FOR CONFIRMATION!
 					`,
 					image: `
+						You have been given an ability to generate image 
+						'You MUST run the tool first exactly once'
+						USE 1:1 aspect ratio if not specified and 1 image as default unless specified
+						DO NOT ASK THE USER FOR CONFIRMATION!
+					`,
+					'gpt-image-1': `
 						You have been given an ability to generate image 
 						'You MUST run the tool first exactly once'
 						USE 1:1 aspect ratio if not specified and 1 image as default unless specified
