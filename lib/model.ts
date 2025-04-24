@@ -164,14 +164,19 @@ export const getModel = ({
 			}
 		}
 	} else if (provider.name === 'openai') {
-		model = openai(provider.model)
 		if (
 			provider.model === 'o3-mini' ||
 			provider.model === 'o4-mini'
 		) {
+			model = openai.responses(provider.model)
 			providerOptions = {
-				openai: { reasoningEffort: provider.reasoning_effort },
+				openai: {
+					reasoningEffort: provider.reasoning_effort,
+					reasoningSummary: 'detailed',
+				},
 			}
+		} else {
+			model = openai(provider.model)
 		}
 	} else if (provider.name === 'groq') {
 		if (provider.model !== 'llama-3.3-70b-versatile') {
