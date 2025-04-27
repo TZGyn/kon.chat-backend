@@ -82,7 +82,6 @@ export const modelSchema = z
 			model: z.enum([
 				'meta-llama/llama-4-scout:free',
 				'meta-llama/llama-4-maverick:free',
-				'deepseek/deepseek-r1:free',
 			]),
 		}),
 	])
@@ -106,7 +105,6 @@ export const freeModels = [
 	'gemini-2.5-pro-exp-03-25',
 	'meta-llama/llama-4-scout:free',
 	'meta-llama/llama-4-maverick:free',
-	'deepseek/deepseek-r1:free',
 ] as const
 
 export const standardModels = [
