@@ -562,11 +562,29 @@ app.post(
 					z.literal('gpt-image-1'),
 				])
 				.default('chat'),
+			additional_system_prompt: z
+				.string()
+				.max(1000)
+				.optional()
+				.nullable()
+				.default(''),
+			name_for_llm: z
+				.string()
+				.max(50)
+				.optional()
+				.nullable()
+				.default(''),
 		}),
 	),
 	async (c) => {
-		const { messages, provider, searchGrounding, mode } =
-			c.req.valid('json')
+		const {
+			messages,
+			provider,
+			searchGrounding,
+			mode,
+			additional_system_prompt,
+			name_for_llm,
+		} = c.req.valid('json')
 
 		if (searchGrounding && mode !== 'chat') {
 			return c.text(
@@ -754,6 +772,12 @@ app.post(
 							weekday: 'short',
 						})}
 
+						${
+							name_for_llm
+								? `The user has asked you to refer their name as ${name_for_llm}`
+								: ''
+						}
+
 						Note: frontend has a tool to display mermaid code, 
 						so you don't have to tell the user you don't have the ability to render mermaid code 
 						or tell the user how to render them
@@ -793,6 +817,12 @@ app.post(
 						"You must be logged in to use this feature, if you sign up we will give you 50 credits (worth $0.50)"
 
 						${additionalSystemPrompt[mode]}
+
+						${
+							additional_system_prompt
+								? `The user has also provided additional system prompt for you, here is the prompt: ${additional_system_prompt}`
+								: ''
+						}
 					`,
 					providerOptions: providerOptions,
 					abortSignal: c.req.raw.signal,

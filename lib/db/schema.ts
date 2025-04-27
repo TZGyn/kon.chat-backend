@@ -26,6 +26,12 @@ export const user = pgTable('user', {
 		.notNull()
 		.$type<'free' | 'pro' | 'basic' | 'owner'>()
 		.default('free'),
+	nameForLLM: varchar('name_for_llm', { length: 255 })
+		.notNull()
+		.default(''),
+	additionalSystemPrompt: text('additional_system_prompt')
+		.notNull()
+		.default(''),
 	createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
 

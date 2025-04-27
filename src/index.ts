@@ -8,6 +8,7 @@ import { openAPISpecs } from 'hono-openapi'
 import { apiReference } from '@scalar/hono-api-reference'
 
 import AuthRoutes from './routes/auth'
+import UserRoutes from './routes/user'
 import ChatRoutes from './routes/chat'
 import FileUploadRoutes from './routes/file-upload'
 import WebhookRoutes from './routes/webhook'
@@ -55,6 +56,7 @@ app.get(
 )
 
 app.route('/auth', AuthRoutes)
+app.route('/user', UserRoutes)
 app.route('/chat', ChatRoutes)
 app.route('/file-upload', FileUploadRoutes)
 app.route('/webhook', WebhookRoutes)

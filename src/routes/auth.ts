@@ -93,6 +93,8 @@ app.get('/me', async (c) => {
 					avatar: user.avatar,
 					credits: user.credits,
 					purchased_credits: user.purchasedCredits,
+					name_for_llm: user.nameForLLM,
+					additional_system_prompt: user.additionalSystemPrompt,
 			  }
 			: null,
 	})
