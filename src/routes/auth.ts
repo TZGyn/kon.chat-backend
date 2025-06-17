@@ -237,9 +237,9 @@ app.get('/login/google/callback', async (c) => {
 				googleId: googleUserId,
 				username: username,
 				email: email,
-				plan: 'free',
+				plan: 'pro',
 				credits: 0,
-				purchasedCredits: 5000,
+				purchasedCredits: 50000,
 				createdAt: Date.now(),
 			})
 			.returning()
