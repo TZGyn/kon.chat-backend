@@ -1413,6 +1413,8 @@ app.post('/:chat_id/copy', async (c) => {
 		}),
 	)
 
+	console.log(uploadsData)
+
 	if (existingChat.messages.length > 0) {
 		const now = Date.now()
 		await db.insert(message).values(
