@@ -60,6 +60,7 @@ app.get('/', async (c) => {
 		columns: {
 			id: true,
 			title: true,
+			visibility: true,
 			createdAt: true,
 			updatedAt: true,
 		},
