@@ -1,9 +1,81 @@
+Kon.Chat backend
+
+Environments variables:
+
+```sh
+APP_ENV= # local / production
+APP_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5173
+DATABASE_URL= # postgres://postgres:[password]@127.0.0.1:5432/kon.chat
+
+# Open AI
+OPENAI_API_KEY=
+# Claude AI
+CLAUDE_API_KEY=
+# Gemini AI
+GEMINI_API_KEY=
+GEMINI_PROJECT_ID=
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=
+GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL=
+# Open Router
+OPENROUTER_API_KEY=
+# Groq
+GROQ_API_KEY=
+# XAI
+XAI_API_KEY=
+MISTRAL_API_KEY=
+
+# Google OAuth
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+
+# Github OAuth
+GITHUB_OAUTH_CLIENT_ID=
+GITHUB_OAUTH_CLIENT_SECRET=
+
+# Jina AI
+JINA_API_KEY=
+
+# Exa AI
+EXA_API_KEY=
+
+# Tavily
+TAVILY_API_KEY=
+
+# Brave
+BRAVE_API_KEY=
+
+# Vercel
+VERCEL_API_KEY=
+VERCEL_APP_PROJECT_ID=
+
+# R2
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_BUCKET=
+S3_API_URL=
+S3_PUBLIC_URL=
+
+# Upstash
+UPSTASH_ENDPOINT=
+UPSTASH_SECRET=
+
+# Polar
+POLAR_ACCESS_KEY=
+POLAR_BASIC_PLAN_PRICE_ID=
+POLAR_PRO_PLAN_PRICE_ID=
+POLAR_500_CREDITS_PRICE_ID=
+POLAR_WEBHOOK_SECRET=
+```
+
 To install dependencies:
+
 ```sh
 bun install
 ```
 
 To run:
+
 ```sh
 bun run dev
 ```
